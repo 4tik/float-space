@@ -24,7 +24,7 @@ const defaultSettings: AppSettings = {
   compactToolbar: false,
   hideToolbarOnInactive: false,
 
-  theme: 'dark',
+  theme: 'light',
   accentColor: '#0c8ce9',
   enableAnimations: true,
 
@@ -53,6 +53,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           } catch {
             merged[k] = v;
           }
+        }
+        // Default to clean light theme
+        if (!merged.theme || merged.theme === 'dark') {
+          merged.theme = 'light';
         }
         set({ settings: merged });
         applyTheme(merged.theme);

@@ -379,7 +379,7 @@ export class DatabaseService {
       this.settings.setMany({
         restorePreviousSession: true,
         minimizeToTray: true,
-        theme: 'dark',
+        theme: 'light',
         accentColor: '#0c8ce9',
         captureFrameRate: 30,
         previewQuality: 'medium',

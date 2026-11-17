@@ -25,6 +25,7 @@ export const App: React.FC = () => {
     const windowId = params.get('windowId');
 
     if (mode === 'monitor' && windowId) {
+      loadSettings();
       setMonitorModeId(windowId);
       return;
     }

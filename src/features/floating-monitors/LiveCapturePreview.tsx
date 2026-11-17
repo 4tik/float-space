@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, RefreshCw, VideoOff } from 'lucide-react';
-import { isElectron } from '../../services/ipc-client';
+import { isElectron, ipcClient } from '../../services/ipc-client';
 
 interface LiveCapturePreviewProps {
   sourceId?: string;
@@ -21,9 +21,21 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fallbackImage, setFallbackImage] = useState<string | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
+
+    async function loadFallbackThumbnail() {
+      if (!sourceId || !isElectron) return;
+      try {
+        const windows = await ipcClient.getRunningWindows();
+        const match = windows.find((w) => w.sourceId === sourceId || w.id === sourceId);
+        if (match?.thumbnailDataUrl && !isCancelled) {
+          setFallbackImage(match.thumbnailDataUrl);
+        }
+      } catch {}
+    }
 
     async function startCapture() {
       if (!sourceId) {
@@ -33,6 +45,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
       setError(null);
       setLoading(true);
+      loadFallbackThumbnail();
 
       // Stop previous tracks
       if (streamRef.current) {
@@ -42,7 +55,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
       try {
         if (!isElectron) {
-          // Fallback in web browser mode
           setLoading(false);
           return;
         }
@@ -66,7 +78,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
         streamRef.current = stream;
 
-        // Listen for track ended (e.g. source window closed)
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
           videoTrack.onended = () => {
@@ -83,8 +94,11 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         setLoading(false);
       } catch (err: any) {
         if (!isCancelled) {
-          console.error('Screen capture error:', err);
-          setError(err.message || 'Failed to capture application window.');
+          console.warn('WebRTC stream capture error, attempting fallback thumbnail:', err);
+          // If we have a fallback thumbnail, don't show fatal error
+          if (!fallbackImage) {
+            setError(err.message || 'Connecting to application window...');
+          }
           setLoading(false);
         }
       }
@@ -99,9 +113,9 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         streamRef.current = null;
       }
     };
-  }, [sourceId, frameRate, quality, onEnded]);
+  }, [sourceId, frameRate]);
 
-  // Handle pause/resume
+  // Handle stream pause/resume
   useEffect(() => {
     if (streamRef.current) {
       streamRef.current.getVideoTracks().forEach((track) => {
@@ -110,54 +124,65 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
     }
   }, [isPaused]);
 
-  if (error) {
+  if (error && !fallbackImage) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 p-4 text-center">
-        <AlertCircle size={24} className="text-rose-500 mb-2" />
-        <span className="text-xs font-medium text-slate-300">{error}</span>
-        <span className="text-[10px] text-slate-500 mt-1">
-          The original application window may have been closed or minimized.
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 p-4 text-center select-none text-slate-700">
+        <AlertCircle size={22} className="text-amber-500 mb-2" />
+        <span className="text-xs font-semibold text-slate-800">{error}</span>
+        <span className="text-[10px] text-slate-500 mt-1 max-w-xs">
+          Make sure the target application is not minimized.
         </span>
       </div>
     );
   }
 
-  if (loading) {
+  if (loading && !fallbackImage) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 text-slate-400">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-600 select-none">
         <RefreshCw size={20} className="animate-spin mb-2 text-primary-500" />
-        <span className="text-xs">Connecting Live Stream...</span>
+        <span className="text-xs font-medium">Connecting Live Preview...</span>
       </div>
     );
   }
 
   if (!sourceId || !isElectron) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-zinc-950 text-slate-300 p-4 select-none">
-        <div className="p-3 rounded-full bg-primary-500/10 text-primary-400 mb-2">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-700 p-4 select-none">
+        <div className="p-3 rounded-full bg-primary-500/10 text-primary-600 mb-2">
           <VideoOff size={22} />
         </div>
-        <div className="text-xs font-semibold">Active Live Monitor Window</div>
-        <div className="text-[10px] text-slate-400 mt-1 text-center max-w-[220px]">
-          Seamless zero-latency window frame. Select a running app to pipe its live visual feed here.
+        <div className="text-xs font-semibold">Active Floating Monitor</div>
+        <div className="text-[10px] text-slate-500 mt-1 text-center max-w-[220px]">
+          Drag and drop any running window to display it here.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full bg-black relative flex items-center justify-center overflow-hidden">
+    <div className="w-full h-full bg-slate-100 relative flex items-center justify-center overflow-hidden">
+      {/* Fallback image if WebRTC stream is buffering or unavailable */}
+      {fallbackImage && (
+        <img
+          src={fallbackImage}
+          alt=""
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+        />
+      )}
+
+      {/* Primary hardware-accelerated video element */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        className="w-full h-full object-contain pointer-events-none"
+        className="w-full h-full object-contain pointer-events-none relative z-10"
       />
+
       {isPaused && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-          <span className="text-xs font-medium text-white px-2.5 py-1 rounded bg-black/50 border border-white/10">
-            Stream Paused
+        <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-20">
+          <span className="text-xs font-medium text-slate-800 px-2.5 py-1 rounded bg-white shadow-md border border-slate-200">
+            Preview Paused
           </span>
         </div>
       )}

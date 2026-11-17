@@ -114,11 +114,13 @@ export class FloatingWindowManager {
       movable: !config.isLocked,
       resizable: !config.isLocked,
       skipTaskbar: false,
+      backgroundColor: '#00000000',
       webPreferences: {
         preload: this.preloadPath,
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
+        backgroundThrottling: false,
       },
     });
 

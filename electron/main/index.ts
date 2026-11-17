@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, session, desktopCapturer } from 'electron';
 import * as path from 'path';
 import { DatabaseService } from '../database/db';
 import { FloatingWindowManager } from './floating-window-manager';
@@ -27,6 +27,17 @@ if (!gotTheLock) {
 
   app.whenReady().then(async () => {
     logger.info('Main', 'Electron app ready, starting Float-Space');
+
+    // Grant screen capture and media permissions for desktopCapturer
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      callback(true);
+    });
+    session.defaultSession.setPermissionCheckHandler(() => true);
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+      desktopCapturer.getSources({ types: ['window', 'screen'] }).then((sources) => {
+        callback({ video: sources[0] });
+      }).catch(() => callback({}));
+    });
 
     // 1. Initialize SQLite Database
     const db = DatabaseService.getInstance();

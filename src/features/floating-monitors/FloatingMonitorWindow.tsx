@@ -4,6 +4,7 @@ import { LiveCapturePreview } from './LiveCapturePreview';
 import { FloatingWindowConfig } from '../../types/floating-monitor';
 import { ipcClient } from '../../services/ipc-client';
 import { MousePointer, ExternalLink, Info } from 'lucide-react';
+import { cn } from '../../utils/cn';
 
 interface FloatingMonitorWindowProps {
   windowId: string;
@@ -32,7 +33,7 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
 
   if (!config) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-slate-900 text-slate-400 text-xs">
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-100 text-slate-500 text-xs">
         Loading monitor...
       </div>
     );
@@ -55,8 +56,13 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
   const isEmbedded = config.displayMode === 'embedded';
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden rounded-mac-lg border border-white/15 shadow-2xl bg-slate-950 select-none">
-      {/* Top Floating Toolbar */}
+    <div
+      className={cn(
+        'h-screen w-screen flex flex-col overflow-hidden rounded-mac-lg border border-slate-300/80 shadow-2xl select-none',
+        isEmbedded ? 'bg-transparent' : 'bg-slate-100'
+      )}
+    >
+      {/* Top Floating Toolbar (macOS frosted light bar) */}
       {!config.hideToolbar && (
         <FloatingToolbar
           config={config}
@@ -76,18 +82,17 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
       {/* Main Content Area */}
       <div className="flex-1 relative overflow-hidden flex flex-col">
         {isEmbedded ? (
-          // Native Interactive Embedding Container
+          // Native Interactive Embedding Container (Transparent so OS renders the child window)
           <div className="flex-1 w-full h-full relative bg-transparent flex flex-col items-center justify-center text-center p-4">
-            {/* The native child HWND is rendered by Windows OS directly in this window area */}
             <div className="absolute inset-0 pointer-events-none flex flex-col justify-end p-2 z-10 opacity-70 hover:opacity-100 transition-opacity">
-              <div className="bg-slate-900/80 backdrop-blur-md text-[10px] text-emerald-300 border border-emerald-500/30 rounded px-2 py-1 flex items-center justify-between pointer-events-auto">
+              <div className="bg-white/95 backdrop-blur-md text-[10px] text-emerald-800 border border-emerald-300 rounded px-2.5 py-1 flex items-center justify-between pointer-events-auto shadow-sm">
                 <span className="flex items-center gap-1.5 font-medium">
-                  <MousePointer size={11} className="text-emerald-400" />
-                  Native Interactive Mode (Clicks, typing & scrolling active)
+                  <MousePointer size={11} className="text-emerald-600" />
+                  Native Interactive (Clicks, typing & scrolling active)
                 </span>
                 <button
                   onClick={handleToggleDisplayMode}
-                  className="text-slate-400 hover:text-white underline text-[9px] ml-2"
+                  className="text-slate-500 hover:text-slate-800 underline text-[9px] ml-2"
                 >
                   Switch to Live Capture
                 </button>
@@ -107,16 +112,16 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
             {/* Non-interactive clarification banner per guidelines */}
             <div
               onClick={handleFocusSource}
-              className="absolute bottom-0 inset-x-0 bg-slate-950/80 backdrop-blur-md border-t border-white/10 px-2.5 py-1 text-[10px] text-slate-300 flex items-center justify-between cursor-pointer hover:bg-slate-900/90 transition-colors z-20"
+              className="absolute bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-slate-200 px-2.5 py-1 text-[10px] text-slate-700 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors z-20 shadow-sm"
               title="Click to bring the original application forward for interaction"
             >
               <div className="flex items-center gap-1.5 truncate">
-                <Info size={11} className="text-sky-400 shrink-0" />
+                <Info size={11} className="text-sky-600 shrink-0" />
                 <span className="truncate">
-                  Live Visual Preview <span className="text-slate-400">(Non-interactive)</span> • Click to focus app
+                  Live Visual Preview <span className="text-slate-500">(Non-interactive)</span> • Click to focus app
                 </span>
               </div>
-              <span className="inline-flex items-center gap-1 text-[9px] text-sky-400 font-medium shrink-0 ml-2">
+              <span className="inline-flex items-center gap-1 text-[9px] text-sky-600 font-semibold shrink-0 ml-2">
                 Focus <ExternalLink size={9} />
               </span>
             </div>
