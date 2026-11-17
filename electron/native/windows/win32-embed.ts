@@ -243,6 +243,41 @@ export class Win32WindowEmbedder {
       return false;
     }
   }
+
+  /**
+   * Forwards user input (clicks, scroll wheel, typing) to the target window.
+   */
+  public async forwardInput(
+    targetHwnd: string,
+    event: {
+      type: 'click' | 'mouse_down' | 'mouse_up' | 'double_click' | 'context_menu' | 'wheel' | 'char' | 'key';
+      normX?: number;
+      normY?: number;
+      deltaX?: number;
+      deltaY?: number;
+      charCode?: number;
+      keyCode?: number;
+    }
+  ): Promise<boolean> {
+    if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') return false;
+
+    const script = this.ensureScript();
+    const normX = typeof event.normX === 'number' ? event.normX : 0.5;
+    const normY = typeof event.normY === 'number' ? event.normY : 0.5;
+    const deltaX = Math.round(event.deltaX ?? 0);
+    const deltaY = Math.round(event.deltaY ?? 0);
+    const charCode = event.charCode ?? 0;
+    const keyCode = event.keyCode ?? 0;
+
+    const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${script}" -Action input -TargetHwnd "${targetHwnd}" -InputType "${event.type}" -NormX ${normX} -NormY ${normY} -DeltaX ${deltaX} -DeltaY ${deltaY} -CharCode ${charCode} -KeyCode ${keyCode}`;
+
+    try {
+      await execAsync(cmd);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 const SCRIPT_CONTENT = `# Win32 Bridge for Float-Space

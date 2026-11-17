@@ -100,29 +100,30 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
             </div>
           </div>
         ) : (
-          // Live Visual Capture Preview (Non-interactive)
+          // Live High-Resolution Preview with Input Forwarding (Clicks, Scrolling, Typing)
           <div className="flex-1 w-full h-full relative flex flex-col">
             <LiveCapturePreview
               sourceId={config.sourceWindowId}
+              targetHwnd={config.targetHwnd}
               frameRate={config.captureFrameRate}
               quality={config.captureQuality}
               isPaused={isPaused}
             />
 
-            {/* Non-interactive clarification banner per guidelines */}
+            {/* Interactive Control & App Focus Bar */}
             <div
               onClick={handleFocusSource}
               className="absolute bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-slate-200 px-2.5 py-1 text-[10px] text-slate-700 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors z-20 shadow-sm"
-              title="Click to bring the original application forward for interaction"
+              title="Click to bring the original application forward for full OS focus"
             >
               <div className="flex items-center gap-1.5 truncate">
-                <Info size={11} className="text-sky-600 shrink-0" />
+                <MousePointer size={11} className="text-emerald-600 shrink-0" />
                 <span className="truncate">
-                  Live Visual Preview <span className="text-slate-500">(Non-interactive)</span> • Click to focus app
+                  Interactive Mirror <span className="text-emerald-600 font-medium">(Clicks, Scroll & Typing Active)</span>
                 </span>
               </div>
               <span className="inline-flex items-center gap-1 text-[9px] text-sky-600 font-semibold shrink-0 ml-2">
-                Focus <ExternalLink size={9} />
+                Focus Original <ExternalLink size={9} />
               </span>
             </div>
           </div>

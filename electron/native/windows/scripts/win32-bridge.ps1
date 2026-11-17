@@ -9,7 +9,14 @@ param(
   [Parameter(Mandatory=$false)][int]$Y = 32,
   [Parameter(Mandatory=$false)][int]$Width = 480,
   [Parameter(Mandatory=$false)][int]$Height = 288,
-  [Parameter(Mandatory=$false)][long]$OriginalStyle = 0
+  [Parameter(Mandatory=$false)][long]$OriginalStyle = 0,
+  [Parameter(Mandatory=$false)][string]$InputType = "click",
+  [Parameter(Mandatory=$false)][double]$NormX = 0.5,
+  [Parameter(Mandatory=$false)][double]$NormY = 0.5,
+  [Parameter(Mandatory=$false)][int]$DeltaX = 0,
+  [Parameter(Mandatory=$false)][int]$DeltaY = 0,
+  [Parameter(Mandatory=$false)][int]$CharCode = 0,
+  [Parameter(Mandatory=$false)][int]$KeyCode = 0
 )
 
 # Inline C# P/Invoke definitions for User32
@@ -44,6 +51,20 @@ public class Win32Native {
 
     [DllImport("user32.dll")]
     public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 }
 '@
 
@@ -124,6 +145,53 @@ try {
     if ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr)) {
       [Win32Native]::SetForegroundWindow($targetPtr) | Out-Null
       [Win32Native]::BringWindowToTop($targetPtr) | Out-Null
+      $output["success"] = $true
+    }
+  }
+  elseif ($Action -eq "input") {
+    if ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr)) {
+      $rect = New-Object Win32Native+RECT
+      [Win32Native]::GetClientRect($targetPtr, [ref]$rect) | Out-Null
+      $w = [Math]::Max($rect.Right - $rect.Left, 1)
+      $h = [Math]::Max($rect.Bottom - $rect.Top, 1)
+      $targetX = [int]($rect.Left + ($NormX * $w))
+      $targetY = [int]($rect.Top + ($NormY * $h))
+      $lParam = [IntPtr](($targetY -shl 16) -bor ($targetX -band 0xFFFF))
+
+      if ($InputType -eq "click" -or $InputType -eq "mouse_down") {
+        [Win32Native]::PostMessage($targetPtr, 0x0201, [IntPtr]1, $lParam) | Out-Null # WM_LBUTTONDOWN
+        if ($InputType -eq "click") {
+          [Win32Native]::PostMessage($targetPtr, 0x0202, [IntPtr]0, $lParam) | Out-Null # WM_LBUTTONUP
+        }
+      }
+      elseif ($InputType -eq "mouse_up") {
+        [Win32Native]::PostMessage($targetPtr, 0x0202, [IntPtr]0, $lParam) | Out-Null # WM_LBUTTONUP
+      }
+      elseif ($InputType -eq "double_click") {
+        [Win32Native]::PostMessage($targetPtr, 0x0203, [IntPtr]1, $lParam) | Out-Null # WM_LBUTTONDBLCLK
+        [Win32Native]::PostMessage($targetPtr, 0x0202, [IntPtr]0, $lParam) | Out-Null # WM_LBUTTONUP
+      }
+      elseif ($InputType -eq "context_menu") {
+        [Win32Native]::PostMessage($targetPtr, 0x0204, [IntPtr]2, $lParam) | Out-Null # WM_RBUTTONDOWN
+        [Win32Native]::PostMessage($targetPtr, 0x0205, [IntPtr]0, $lParam) | Out-Null # WM_RBUTTONUP
+      }
+      elseif ($InputType -eq "wheel") {
+        $wheelDelta = [int]$DeltaY * -1
+        if ($wheelDelta -eq 0) { $wheelDelta = 120 }
+        $wParam = [IntPtr]($wheelDelta -shl 16)
+        [Win32Native]::PostMessage($targetPtr, 0x020A, $wParam, $lParam) | Out-Null # WM_MOUSEWHEEL
+      }
+      elseif ($InputType -eq "char") {
+        if ($CharCode -gt 0) {
+          [Win32Native]::PostMessage($targetPtr, 0x0102, [IntPtr]$CharCode, [IntPtr]1) | Out-Null # WM_CHAR
+        }
+      }
+      elseif ($InputType -eq "key") {
+        if ($KeyCode -gt 0) {
+          [Win32Native]::PostMessage($targetPtr, 0x0100, [IntPtr]$KeyCode, [IntPtr]1) | Out-Null # WM_KEYDOWN
+          [Win32Native]::PostMessage($targetPtr, 0x0101, [IntPtr]$KeyCode, [IntPtr]1) | Out-Null # WM_KEYUP
+        }
+      }
       $output["success"] = $true
     }
   }

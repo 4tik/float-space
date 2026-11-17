@@ -6,6 +6,7 @@ import { DisplayService } from '../services/display.service';
 import { DatabaseService } from '../database/db';
 import { SnapPosition } from '../../src/types/display';
 import { LoggerService } from '../services/logger.service';
+import { Win32WindowEmbedder } from '../native/windows/win32-embed';
 
 export function registerIpcHandlers(): void {
   const windowManager = FloatingWindowManager.getInstance();
@@ -70,6 +71,11 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_DETACH, async (_, id: string) => {
     return await windowManager.detach(id);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.WINDOW_FORWARD_INPUT, async (_, { targetHwnd, event }) => {
+    if (!targetHwnd || targetHwnd === '0') return false;
+    return await Win32WindowEmbedder.getInstance().forwardInput(targetHwnd, event);
   });
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_HIDE_ALL, () => {

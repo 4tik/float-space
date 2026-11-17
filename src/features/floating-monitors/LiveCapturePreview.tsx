@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn';
 
 interface LiveCapturePreviewProps {
   sourceId?: string;
+  targetHwnd?: string;
   frameRate?: number;
   quality?: 'low' | 'medium' | 'high';
   isPaused?: boolean;
@@ -13,11 +14,13 @@ interface LiveCapturePreviewProps {
 
 export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
   sourceId,
+  targetHwnd,
   frameRate = 30,
-  quality = 'medium',
+  quality = 'high',
   isPaused = false,
   onEnded,
 }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,13 +64,22 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
           return;
         }
 
+        // Request native high-resolution desktop stream to eliminate blurry and low-resolution rendering
+        const dpr = window.devicePixelRatio || 1;
+        const maxW = Math.min(Math.round(window.screen.width * dpr * 2), 3840);
+        const maxH = Math.min(Math.round(window.screen.height * dpr * 2), 2160);
+
         const constraints: any = {
           audio: false,
           video: {
             mandatory: {
               chromeMediaSource: 'desktop',
               chromeMediaSourceId: sourceId,
-              maxFrameRate: frameRate,
+              minWidth: 1280,
+              maxWidth: Math.max(maxW, 1920),
+              minHeight: 720,
+              maxHeight: Math.max(maxH, 1080),
+              maxFrameRate: Math.max(frameRate, 30),
             },
           },
         };
@@ -97,7 +109,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
       } catch (err: any) {
         if (!isCancelled) {
           console.warn('WebRTC stream capture error, attempting fallback thumbnail:', err);
-          // If we have a fallback thumbnail, don't show fatal error
           if (!fallbackImage) {
             setError(err.message || 'Connecting to application window...');
           }
@@ -125,6 +136,118 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
       });
     }
   }, [isPaused]);
+
+  // Calculate normalized (0..1) coordinates in the actual rendered application video rect
+  const getNormalizedCoords = (clientX: number, clientY: number) => {
+    if (!videoRef.current) return null;
+    const video = videoRef.current;
+    const rect = video.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    const natW = video.videoWidth || rect.width;
+    const natH = video.videoHeight || rect.height;
+
+    const containerRatio = rect.width / rect.height;
+    const videoRatio = natW / natH;
+
+    let renderW = rect.width;
+    let renderH = rect.height;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (containerRatio > videoRatio) {
+      renderW = rect.height * videoRatio;
+      offsetX = (rect.width - renderW) / 2;
+    } else {
+      renderH = rect.width / videoRatio;
+      offsetY = (rect.height - renderH) / 2;
+    }
+
+    const mouseX = clientX - rect.left - offsetX;
+    const mouseY = clientY - rect.top - offsetY;
+
+    if (mouseX < 0 || mouseX > renderW || mouseY < 0 || mouseY > renderH) {
+      return null;
+    }
+
+    return {
+      normX: Math.max(0, Math.min(1, mouseX / renderW)),
+      normY: Math.max(0, Math.min(1, mouseY / renderH)),
+    };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!targetHwnd) return;
+    const coords = getNormalizedCoords(e.clientX, e.clientY);
+    if (!coords) return;
+    const type = e.button === 2 ? 'context_menu' : 'mouse_down';
+    ipcClient.forwardInput(targetHwnd, {
+      type,
+      normX: coords.normX,
+      normY: coords.normY,
+    });
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (!targetHwnd) return;
+    const coords = getNormalizedCoords(e.clientX, e.clientY);
+    if (!coords) return;
+    ipcClient.forwardInput(targetHwnd, {
+      type: 'mouse_up',
+      normX: coords.normX,
+      normY: coords.normY,
+    });
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (!targetHwnd) return;
+    const coords = getNormalizedCoords(e.clientX, e.clientY);
+    if (!coords) return;
+    ipcClient.forwardInput(targetHwnd, {
+      type: 'double_click',
+      normX: coords.normX,
+      normY: coords.normY,
+    });
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!targetHwnd) return;
+    const coords = getNormalizedCoords(e.clientX, e.clientY);
+    if (!coords) return;
+    ipcClient.forwardInput(targetHwnd, {
+      type: 'context_menu',
+      normX: coords.normX,
+      normY: coords.normY,
+    });
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!targetHwnd) return;
+    const coords = getNormalizedCoords(e.clientX, e.clientY);
+    ipcClient.forwardInput(targetHwnd, {
+      type: 'wheel',
+      normX: coords?.normX ?? 0.5,
+      normY: coords?.normY ?? 0.5,
+      deltaX: e.deltaX,
+      deltaY: e.deltaY,
+    });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!targetHwnd) return;
+    if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      ipcClient.forwardInput(targetHwnd, {
+        type: 'char',
+        charCode: e.key.charCodeAt(0),
+      });
+    } else {
+      ipcClient.forwardInput(targetHwnd, {
+        type: 'key',
+        keyCode: e.keyCode,
+      });
+    }
+  };
 
   if (error && !fallbackImage) {
     return (
@@ -162,7 +285,18 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
   }
 
   return (
-    <div className="w-full h-full bg-slate-100 relative flex items-center justify-center overflow-hidden">
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
+      onContextMenu={handleContextMenu}
+      onWheel={handleWheel}
+      onKeyDown={handleKeyDown}
+      className="w-full h-full bg-slate-100 relative flex items-center justify-center overflow-hidden outline-none cursor-default select-none"
+      title="Click, scroll with mouse wheel, or type on keyboard to interact"
+    >
       {/* Fallback image if WebRTC stream is buffering or unavailable */}
       {fallbackImage && (
         <img
@@ -172,7 +306,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         />
       )}
 
-      {/* Primary hardware-accelerated video element */}
+      {/* Primary hardware-accelerated high-resolution video element */}
       <video
         ref={videoRef}
         autoPlay
@@ -183,6 +317,9 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
           "w-full h-full object-contain pointer-events-none relative z-10 transition-opacity duration-200",
           isPlaying ? "opacity-100" : "opacity-0"
         )}
+        style={{
+          imageRendering: '-webkit-optimize-contrast',
+        }}
       />
 
       {isPaused && (

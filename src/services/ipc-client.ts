@@ -134,6 +134,13 @@ export const ipcClient = {
     return true;
   },
 
+  async forwardInput(targetHwnd: string, event: any): Promise<boolean> {
+    if (isElectron && window.electronAPI?.forwardInput) {
+      return await window.electronAPI.forwardInput(targetHwnd, event);
+    }
+    return false;
+  },
+
   async hideAllWindows(): Promise<boolean> {
     if (isElectron) return await window.electronAPI.hideAllWindows();
     return true;

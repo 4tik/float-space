@@ -5,8 +5,13 @@
   "directories": {
     "output": "release"
   },
+  "compression": "maximum",
+  "electronLanguages": ["en-US"],
+  "asar": true,
   "files": [
     "dist/**/*",
+    "!dist/**/*.map",
+    "!**/*.tsbuildinfo",
     "package.json"
   ],
   "win": {
@@ -31,6 +36,7 @@
     "uninstallDisplayName": "Float-Space",
     "deleteAppDataOnUninstall": false,
     "runAfterFinish": true,
+    "differentialPackage": false,
     "artifactName": "Float-Space-Setup-${version}.${ext}"
   },
   "portable": {
