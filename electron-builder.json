@@ -1,7 +1,7 @@
 {
-  "appId": "com.floatingmonitor.app",
-  "productName": "Floating Monitor",
-  "copyright": "Copyright © 2026 Floating Monitor Team",
+  "appId": "com.floatspace.desktop",
+  "productName": "Float-Space",
+  "copyright": "Copyright © 2026 Float-Space Team",
   "directories": {
     "output": "release"
   },
@@ -19,24 +19,48 @@
         "target": "portable",
         "arch": ["x64"]
       }
-    ]
+    ],
+    "artifactName": "Float-Space-${target}-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Float-Space",
+    "uninstallDisplayName": "Float-Space",
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": true
+  },
+  "portable": {
+    "artifactName": "Float-Space-Portable-${version}.${ext}"
   },
   "mac": {
     "category": "public.app-category.productivity",
     "target": ["dmg", "zip"],
+    "artifactName": "Float-Space-${version}.${ext}",
     "hardenedRuntime": true,
-    "gatekeeperAssess": false,
-    "entitlements": "resources/entitlements.mac.plist",
-    "entitlementsInherit": "resources/entitlements.mac.plist"
+    "gatekeeperAssess": false
+  },
+  "dmg": {
+    "title": "Float-Space ${version}",
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ]
   },
   "linux": {
     "target": ["AppImage", "deb"],
+    "artifactName": "Float-Space-${version}.${ext}",
     "category": "Utility"
-  },
-  "nsis": {
-    "oneClick": false,
-    "allowToChangeInstallationDirectory": true,
-    "createDesktopShortcut": true,
-    "createStartMenuShortcut": true
   }
 }

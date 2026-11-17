@@ -70,19 +70,27 @@ export class DatabaseService {
     if (this.initialized && this.db) return;
 
     try {
-      this.logger.info('DatabaseService', 'Initializing local SQLite database for FloatDesk...');
+      this.logger.info('DatabaseService', 'Initializing local SQLite database for Float-Space...');
 
       // 1. Resolve dedicated directory structure under app.getPath('userData')
       const userDataDir = app ? app.getPath('userData') : path.join(process.cwd(), '.data');
-      this.baseDir = path.join(userDataDir, 'FloatDesk');
+      this.baseDir = path.join(userDataDir, 'Float-Space');
       this.databaseDir = path.join(this.baseDir, 'database');
       this.migrationsDir = path.join(this.databaseDir, 'migrations');
       this.backupsDir = path.join(this.databaseDir, 'backups');
       this.metadataPath = path.join(this.databaseDir, 'metadata.json');
-      this.dbPath = path.join(this.databaseDir, 'floatdesk.db');
+      this.dbPath = path.join(this.databaseDir, 'floatspace.db');
       this.cacheDir = path.join(this.baseDir, 'cache');
       this.logsDir = path.join(this.baseDir, 'logs');
       this.exportsDir = path.join(this.baseDir, 'exports');
+
+      // Seamless migration if legacy FloatDesk directory exists
+      const legacyDir = path.join(userDataDir, 'FloatDesk');
+      if (!fs.existsSync(this.baseDir) && fs.existsSync(legacyDir)) {
+        try {
+          fs.cpSync(legacyDir, this.baseDir, { recursive: true });
+        } catch {}
+      }
 
       // Ensure directory structure exists
       for (const dir of [

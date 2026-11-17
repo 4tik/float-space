@@ -11,7 +11,7 @@ export const AboutView: React.FC = () => {
 
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-          Floating Monitor
+          Float-Space
         </h1>
         <p className="text-xs text-primary-500 font-medium mt-1">
           Cross-Platform Desktop Floating Workspace & Application Manager
@@ -20,7 +20,7 @@ export const AboutView: React.FC = () => {
 
       <div className="mac-glass-surface p-5 rounded-mac-xl border border-slate-200/50 dark:border-white/10 text-left space-y-4 text-xs">
         <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-          Floating Monitor brings together the best concepts of macOS Mission Control, Stage Manager,
+          Float-Space brings together the best concepts of macOS Mission Control, Stage Manager,
           Spaces, Picture-in-Picture, and native desktop window management into one unified native desktop
           application.
         </p>

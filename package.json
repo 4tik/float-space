@@ -1,8 +1,8 @@
 {
-  "name": "floatdesk",
-  "productName": "FloatDesk",
+  "name": "float-space",
+  "productName": "Float-Space",
   "version": "1.0.0",
-  "description": "Cross-Platform Desktop Floating Workspace & Application Manager",
+  "description": "Cross-Platform Native Desktop Floating Workspace & Application Manager",
   "main": "dist/electron/main/index.js",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,10 @@
     "start": "electron dist/electron/main/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "test": "vitest run",
+    "make": "npm run build && electron-builder",
+    "make:win": "npm run build && electron-builder --win",
+    "make:mac": "npm run build && electron-builder --mac",
+    "make:linux": "npm run build && electron-builder --linux",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",

@@ -142,7 +142,7 @@ export const DatabaseSettings: React.FC = () => {
           <div className="flex items-center gap-2">
             <Database className="text-primary-500" size={16} />
             <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-              FloatDesk Local SQLite Architecture
+              Float-Space Local SQLite Architecture
             </h3>
           </div>
           <div className="flex items-center gap-2">
@@ -319,7 +319,7 @@ export const DatabaseSettings: React.FC = () => {
       <Dialog
         isOpen={confirmResetOpen}
         onClose={() => setConfirmResetOpen(false)}
-        title="Reset FloatDesk Database?"
+        title="Reset Float-Space Database?"
         description="This will clear your monitor configurations and reset to factory workspace defaults. A safety backup will be created automatically before reset."
       >
         <div className="flex justify-end gap-2 pt-3">

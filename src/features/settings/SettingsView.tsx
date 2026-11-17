@@ -118,7 +118,7 @@ export const SettingsView: React.FC = () => {
                   Minimize to System Tray
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  Keep FloatDesk running in the system tray when dashboard window is closed.
+                  Keep Float-Space running in the system tray when dashboard window is closed.
                 </div>
               </div>
               <input

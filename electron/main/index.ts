@@ -25,7 +25,7 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(async () => {
-    logger.info('Main', 'Electron app ready, starting Floating Monitor');
+    logger.info('Main', 'Electron app ready, starting Float-Space');
 
     // 1. Initialize SQLite Database
     const db = DatabaseService.getInstance();
@@ -92,7 +92,7 @@ function createMainWindow(): void {
     transparent: true,
     hasShadow: true,
     backgroundColor: '#00000000',
-    title: 'Floating Monitor',
+    title: 'Float-Space',
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

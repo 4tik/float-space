@@ -41,7 +41,7 @@ export const AppShell: React.FC = () => {
         </div>
 
         <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 tracking-tight flex items-center gap-2 pointer-events-none">
-          <span>Floating Monitor</span>
+          <span>Float-Space</span>
         </div>
 
         <div className="w-16" />

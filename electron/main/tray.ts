@@ -16,11 +16,11 @@ export function createSystemTray(mainWindow: BrowserWindow): Tray {
   );
 
   tray = new Tray(icon);
-  tray.setToolTip('Floating Monitor - Cross-Platform Desktop Workspace');
+  tray.setToolTip('Float-Space - Native Desktop Workspace & Floating Window Manager');
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Open Dashboard',
+      label: 'Open Float-Space',
       click: () => {
         mainWindow.show();
         mainWindow.focus();
@@ -44,7 +44,7 @@ export function createSystemTray(mainWindow: BrowserWindow): Tray {
     },
     { type: 'separator' },
     {
-      label: 'Quit Floating Monitor',
+      label: 'Quit Float-Space',
       click: () => app.quit(),
     },
   ]);

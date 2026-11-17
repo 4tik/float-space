@@ -39,7 +39,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex items-center justify-between pb-2">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-            Floating Workspace Dashboard
+            Float-Space Dashboard
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Cross-platform desktop manager with independent floating monitors.

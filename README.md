@@ -1,15 +1,15 @@
-# FloatDesk
+# Float-Space
 
-> **Cross-Platform Desktop Floating Workspace & Application Manager**  
-> Combining macOS Mission Control, Stage Manager, Spaces, Picture-in-Picture, and native desktop window management into one unified native desktop application.
+> **Cross-Platform Native Desktop Floating Workspace & Application Manager**  
+> An independent desktop utility combining macOS Mission Control, Stage Manager, Spaces, Picture-in-Picture, and native window management into one unified native desktop application.
 
 ---
 
 ## 1. Project Overview
 
-**FloatDesk** is an exclusive, native desktop utility built for **Windows**, **macOS**, and **Linux**. It is engineered to monitor, organize, and manage running desktop applications across multi-display setups using independent, native floating windows.
+**Float-Space** (Application ID: `com.floatspace.desktop`) is an independent, native desktop utility built for **Windows**, **macOS**, and **Linux**. It follows the installation and user experience approach of desktop utilities such as TurboTop, enabling users to monitor, organize, and manage running desktop applications across multi-display setups using independent, floating native windows.
 
-FloatDesk combines desktop window management concepts into a cohesive desktop workspace:
+### Core Features
 - **Independent Floating Windows**: True multi-window native desktop manager where each floating monitor runs as its own frameless window (`BrowserWindow`) with independent always-on-top, opacity, and locking controls.
 - **Hardware-Accelerated Live Previews**: Captures external application windows in real time using native `desktopCapturer` and WebRTC media streams with zero screenshot polling.
 - **macOS Mission Control**: A visual overview grid of all managed floating monitors with instant focus and auto-arrangement.
@@ -19,10 +19,11 @@ FloatDesk combines desktop window management concepts into a cohesive desktop wo
 - **Mandatory Embedded Local SQLite**: Automatic, self-contained local database persistence with versioned migrations, online backups, and diagnostic controls.
 
 ### Desktop-Only Scope
-FloatDesk is designed exclusively for native desktop operating systems:
+Float-Space is designed exclusively for native desktop operating systems:
 - Optimized for desktop displays, mouse dragging, edge/corner resizing, and global system keyboard shortcuts.
 - **No web dashboards, landing pages, PWAs, or mobile interfaces**.
 - **No external database servers, cloud backends, or internet connectivity required**.
+- **No terminal commands required for end users to launch the installed application**.
 
 ### Technology Stack
 - **Desktop Runtime**: Electron 33 (multi-process architecture with strict context isolation)
@@ -30,14 +31,14 @@ FloatDesk is designed exclusively for native desktop operating systems:
 - **State Management**: Zustand 5 (reactive in-memory UI state synchronized with SQLite)
 - **Database & Persistence**: SQLite 3 (sql.js embedded WebAssembly runtime) with Drizzle ORM schema definitions
 - **Build & Bundler**: Vite 6 (renderer) and TypeScript compiler `tsc` (Electron main & preload)
-- **Packaging**: Electron Builder 25 (NSIS, Portable, DMG, AppImage, Deb)
+- **Packaging**: Electron Builder 25 (NSIS Installer, Portable, DMG, AppImage, Deb)
 - **Testing**: Vitest 2
 
 ---
 
 ## 2. Prerequisites
 
-Ensure your development environment meets the following requirements before building or running FloatDesk:
+Ensure your development environment meets the following requirements before building or packaging Float-Space:
 
 | Requirement | Supported Version | Notes |
 |---|---|---|
@@ -57,9 +58,9 @@ Ensure your development environment meets the following requirements before buil
 
 ---
 
-## 3. Installation
+## 3. Installation & Setup
 
-FloatDesk is completely self-contained. **No external database installation (such as PostgreSQL, MySQL, or MongoDB) or cloud database credentials are ever required.**
+Float-Space is completely self-contained. **No external database installation (such as PostgreSQL, MySQL, or MongoDB) or cloud database credentials are ever required.**
 
 ### 1. Clone the Repository
 ```bash
@@ -78,7 +79,7 @@ All required SQLite runtimes and native dependencies are bundled and prepared au
 
 ## 4. Development Workflow
 
-FloatDesk provides npm scripts for development, testing, type checking, and production builds:
+Float-Space provides standard npm scripts for development, testing, type checking, and production packaging:
 
 ### Start Development Server
 Starts Vite dev server for hot-reloading the React UI and boots the Electron desktop application:
@@ -105,6 +106,14 @@ npm run build
 ```
 *(Runs `npm run build:electron` followed by `npm run build:renderer`)*.
 
+### Package & Make Native Installers
+Generates the native installers and executables for your operating system:
+```bash
+npm run make
+# or
+npm run dist
+```
+
 ### Start Built Application
 Launches the compiled desktop application from `dist/`:
 ```bash
@@ -115,15 +124,15 @@ npm start
 
 ## 5. Local Database Architecture
 
-FloatDesk uses an embedded, local **SQLite 3** database as its primary, mandatory, and persistent source of truth. Every installation automatically initializes and maintains its own database on the local computer.
+Float-Space uses an embedded, local **SQLite 3** database as its primary, mandatory, and persistent source of truth. Every installation automatically initializes and maintains its own database on the local computer.
 
 ### Directory Structure & File Locations
 The database is never stored inside the application installation folder, ensuring that application updates never overwrite or corrupt user data. The directory is resolved at runtime via Electron's `app.getPath('userData')`:
 
 ```text
-FloatDesk/
+Float-Space/
 ├── database/
-│   ├── floatdesk.db             # Primary SQLite database
+│   ├── floatspace.db            # Primary SQLite database
 │   ├── migrations/              # Versioned migration files
 │   ├── backups/                 # Automatic & user snapshots (capped at 10)
 │   └── metadata.json            # Database health, timestamps & backup ledger
@@ -136,9 +145,9 @@ FloatDesk/
 
 | Operating System | Default Database Location |
 |---|---|
-| **Windows** | `%APPDATA%\FloatDesk\database\floatdesk.db`<br>*(e.g., `C:\Users\<User>\AppData\Roaming\FloatDesk\database\floatdesk.db`)* |
-| **macOS** | `~/Library/Application Support/FloatDesk/database/floatdesk.db` |
-| **Linux** | `~/.config/FloatDesk/database/floatdesk.db` |
+| **Windows** | `%APPDATA%\Float-Space\database\floatspace.db`<br>*(e.g., `C:\Users\<User>\AppData\Roaming\Float-Space\database\floatspace.db`)* |
+| **macOS** | `~/Library/Application Support/Float-Space/database/floatspace.db` |
+| **Linux** | `~/.config/Float-Space/database/floatspace.db` |
 
 ### Database Schema (13 Core Tables)
 Defined in `electron/database/drizzle-schema.ts` and `electron/database/schema.ts`:
@@ -156,16 +165,6 @@ Defined in `electron/database/drizzle-schema.ts` and `electron/database/schema.t
 12. `display_configurations`: Multi-display bounds, scale factors, and work areas.
 13. `session_history`: Session lifecycle logs and state snapshots for session restoration.
 14. `_migrations`: Version tracking ledger for atomic database migrations.
-
-### Database Initialization Pipeline
-On application boot, `DatabaseService` executes:
-1. Directory verification (`FloatDesk/database`, `backups`, etc.).
-2. SQLite engine initialization with `PRAGMA foreign_keys = ON;`, `PRAGMA journal_mode = WAL;`, and `PRAGMA synchronous = NORMAL;`.
-3. Pre-migration backup creation (`floatdesk-backup-<timestamp>-pre-migration.db`).
-4. Automated schema migration execution via `MigrationRunner`.
-5. Database integrity validation using `PRAGMA integrity_check;`.
-6. Default workspace and preference seeding if empty.
-7. Diagnostic logging and `metadata.json` update.
 
 ### Backup, Restore & Reset
 Users can manage their local database directly from the application interface:
@@ -227,8 +226,8 @@ Users can manage their local database directly from the application interface:
 │   │   ├── floating-monitors/           # Floating monitor window, toolbar, WebRTC preview
 │   │   ├── applications/                # Discovered apps & running windows catalog
 │   │   ├── layouts/                     # Display snapping & auto-arrangement presets
-│   │   ├── settings/                    # Preferences & DatabaseSettings UI
-│   │   └── about/                       # About FloatDesk & architecture info
+│   │   └── settings/                    # Preferences & DatabaseSettings UI
+│   │   └── about/                       # About Float-Space & architecture info
 │   ├── stores/                          # Zustand state stores
 │   ├── services/                        # IPC client wrapper with browser fallback
 │   ├── types/                           # Shared TypeScript domain types
@@ -251,49 +250,52 @@ Users can manage their local database directly from the application interface:
 
 ## 7. Production Packaging & Distribution
 
-FloatDesk uses `electron-builder` to package production installers and portable executables.
+Float-Space generates native desktop installers using `electron-builder`:
 
-### Build Executables
+### Build Commands
 
 ```bash
 # Package for the current operating system
-npm run dist
+npm run make
 
 # Package specifically for Windows (NSIS Installer & Portable)
-npm run dist:win
+npm run make:win
 
 # Package specifically for macOS (DMG & Application Bundle)
-npm run dist:mac
+npm run make:mac
 
 # Package specifically for Linux (AppImage & Debian Package)
-npm run dist:linux
+npm run make:linux
 ```
 
 All distribution installers are generated in the `release/` folder.
 
-### Distribution Formats
+### Distribution Deliverables
 - **Windows**:
-  - `FloatDesk Setup 1.0.0.exe` (NSIS installer with custom directory selection and desktop/start menu shortcuts).
-  - `FloatDesk 1.0.0.exe` (Self-contained portable executable).
+  - `Float-Space-Setup-1.0.0.exe` — Windows NSIS installer with customizable installation path, Start Menu shortcuts, desktop shortcut, and clean uninstallation handling.
+  - `Float-Space-Portable-1.0.0.exe` — Self-contained portable executable.
 - **macOS**:
-  - `FloatDesk-1.0.0.dmg` (Apple Disk Image).
-  - `FloatDesk-1.0.0-mac.zip` (Signed app bundle archive).
-  - *Hardened runtime and entitlements configured in `electron-builder.json`*.
+  - `Float-Space-1.0.0.dmg` — Standard macOS disk image with Applications folder drag-and-drop.
+  - `Float-Space.app` (inside `Float-Space-1.0.0-mac.zip`) — Application bundle.
 - **Linux**:
-  - `FloatDesk-1.0.0.AppImage` (Universal Linux executable).
-  - `floatdesk_1.0.0_amd64.deb` (Debian/Ubuntu package).
+  - `Float-Space-1.0.0.AppImage` — Universal Linux binary with execute permissions.
+  - `float-space_1.0.0_amd64.deb` — Debian/Ubuntu package.
+
+### Safe Installation, Upgrades & Uninstallation
+- **Upgrades**: Upgrading Float-Space replaces only application binaries in Program Files/Applications. The user database at `%APPDATA%\Float-Space\database` is preserved.
+- **Uninstallation**: Standard Windows/macOS uninstaller removes application binaries while preserving user database snapshots unless the user explicitly removes user data.
 
 ---
 
 ## 8. Troubleshooting
 
-### 1. Database Initialization or Migration Errors
+### 1. Database Initialization or Lock Errors
 - **Symptom**: Application fails to start or reports database lock error.
-- **Solution**: FloatDesk stores database files under `FloatDesk/database/`. Ensure the user has write permissions to `%APPDATA%` (Windows), `~/Library/Application Support` (macOS), or `~/.config` (Linux). If a database file was corrupted by an abrupt power outage, open **Settings > Database & Storage** and select **Restore Backup** or delete `floatdesk.db` to allow FloatDesk to regenerate it from the latest pre-migration backup in `backups/`.
+- **Solution**: Float-Space stores database files under `Float-Space/database/`. Ensure the user has write permissions to `%APPDATA%` (Windows), `~/Library/Application Support` (macOS), or `~/.config` (Linux).
 
 ### 2. macOS Screen Recording Permission Denied
 - **Symptom**: Floating monitors display a black screen or fail to stream application windows.
-- **Solution**: Open **System Settings > Privacy & Security > Screen Recording**, ensure **FloatDesk** is enabled, and restart the application.
+- **Solution**: Open **System Settings > Privacy & Security > Screen Recording**, ensure **Float-Space** is enabled, and restart the application.
 
 ### 3. Application Windows Not Detected
 - **Symptom**: Running window list appears empty.
@@ -332,4 +334,4 @@ npm run build
 
 ## License
 
-MIT License. Copyright © 2026 FloatDesk Team.
+MIT License. Copyright © 2026 Float-Space Team.

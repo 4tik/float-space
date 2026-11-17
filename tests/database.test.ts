@@ -15,7 +15,7 @@ import { DisplayConfigurationRepository } from '../electron/database/repositorie
 import { SessionHistoryRepository } from '../electron/database/repositories/session.repo';
 import { BackupRepository } from '../electron/database/repositories/backup.repo';
 
-describe('FloatDesk Mandatory Local SQLite Architecture', () => {
+describe('Float-Space Mandatory Local SQLite Architecture', () => {
   let db: Database;
   let testDir: string;
   let databaseDir: string;
