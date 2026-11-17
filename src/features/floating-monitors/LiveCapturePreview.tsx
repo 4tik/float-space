@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, RefreshCw, VideoOff } from 'lucide-react';
 import { isElectron, ipcClient } from '../../services/ipc-client';
+import { cn } from '../../utils/cn';
 
 interface LiveCapturePreviewProps {
   sourceId?: string;
@@ -21,6 +22,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [fallbackImage, setFallbackImage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         if (match?.thumbnailDataUrl && !isCancelled) {
           setFallbackImage(match.thumbnailDataUrl);
         }
-      } catch {}
+      } catch { }
     }
 
     async function startCapture() {
@@ -88,7 +90,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
+          videoRef.current.play().catch(() => { });
         }
 
         setLoading(false);
@@ -176,7 +178,11 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         autoPlay
         playsInline
         muted
-        className="w-full h-full object-contain pointer-events-none relative z-10"
+        onPlaying={() => setIsPlaying(true)}
+        className={cn(
+          "w-full h-full object-contain pointer-events-none relative z-10 transition-opacity duration-200",
+          isPlaying ? "opacity-100" : "opacity-0"
+        )}
       />
 
       {isPaused && (

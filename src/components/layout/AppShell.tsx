@@ -60,13 +60,13 @@ export const AppShell: React.FC = () => {
   );
 
   const handleCreateMonitor = async (win: RunningWindowInfo) => {
-    const canEmbed = Boolean(win.handle && win.handle !== '0');
+    // Default to high-performance live visual capture to ensure immediate, reliable preview without blank screens
     await createMonitor({
       title: win.title,
       sourceWindowId: win.sourceId,
       targetHwnd: win.handle,
       processId: win.processId,
-      displayMode: canEmbed ? 'embedded' : 'live-monitor',
+      displayMode: 'live-monitor',
       alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
       opacity: settings.defaultOpacity ?? 1.0,
       width: settings.defaultWidth || 480,
@@ -81,13 +81,12 @@ export const AppShell: React.FC = () => {
       const raw = e.dataTransfer.getData('application/json');
       if (raw) {
         const item = JSON.parse(raw);
-        const canEmbed = Boolean(item.handle && item.handle !== '0');
         await createMonitor({
           title: item.title,
           sourceWindowId: item.sourceId,
           targetHwnd: item.handle,
           processId: item.processId,
-          displayMode: canEmbed ? 'embedded' : 'live-monitor',
+          displayMode: 'live-monitor',
           alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
           opacity: settings.defaultOpacity ?? 1.0,
           width: settings.defaultWidth || 480,
@@ -100,9 +99,9 @@ export const AppShell: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-100/95 dark:bg-[#161618] text-slate-800 dark:text-slate-100 select-none font-sans rounded-mac-xl border border-slate-300/40 dark:border-white/10 shadow-mac-window dark:shadow-mac-window-dark">
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-100 text-slate-800 select-none font-sans rounded-mac-xl border border-slate-300 shadow-mac-window">
       {/* Header with Float-Space Branding & Window Controls */}
-      <header className="h-11 w-full flex items-center justify-between px-3.5 border-b border-slate-200/60 dark:border-white/5 select-none app-drag-region shrink-0 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md">
+      <header className="h-11 w-full flex items-center justify-between px-3.5 border-b border-slate-200 select-none app-drag-region shrink-0 bg-white/80 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <MacTrafficLights
             onClose={() => ipcClient.closeMain()}
@@ -111,7 +110,7 @@ export const AppShell: React.FC = () => {
           />
           <div className="flex items-center gap-2 pl-2">
             <Monitor size={15} className="text-primary-500" />
-            <span className="text-xs font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            <span className="text-xs font-bold tracking-tight text-slate-900">
               Float-Space
             </span>
             <span className="text-[10px] text-slate-400 font-medium">Desktop Monitor</span>
@@ -144,10 +143,10 @@ export const AppShell: React.FC = () => {
       {/* Main Two-Column Workflow Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Column: Running Applications & Browser Windows */}
-        <section className="w-80 border-r border-slate-200/60 dark:border-white/5 flex flex-col bg-slate-50/50 dark:bg-zinc-900/20 app-no-drag">
-          <div className="p-3 border-b border-slate-200/50 dark:border-white/5">
+        <section className="w-80 border-r border-slate-200 flex flex-col bg-slate-50/70 app-no-drag">
+          <div className="p-3 border-b border-slate-200">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <h2 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                 <AppWindow size={13} /> Running Applications ({filteredWindows.length})
               </h2>
             </div>
@@ -176,7 +175,7 @@ export const AppShell: React.FC = () => {
                     e.dataTransfer.setData('application/json', JSON.stringify(win));
                     e.dataTransfer.effectAllowed = 'copy';
                   }}
-                  className="group p-2.5 rounded-mac border border-slate-200/60 dark:border-white/5 bg-white/60 dark:bg-white/5 hover:border-primary-500/40 hover:bg-primary-500/5 cursor-grab active:cursor-grabbing transition-all flex items-center justify-between gap-2 shadow-sm"
+                  className="group p-2.5 rounded-mac border border-slate-200 bg-white hover:border-primary-500/40 hover:bg-primary-50/50 cursor-grab active:cursor-grabbing transition-all flex items-center justify-between gap-2 shadow-sm"
                   title="Drag onto the monitor area or click Float to create a monitor"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 pr-1">
@@ -188,17 +187,17 @@ export const AppShell: React.FC = () => {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate leading-snug">
+                      <div className="text-xs font-medium text-slate-800 truncate leading-snug">
                         {win.title}
                       </div>
                       <div className="text-[10px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
                         <span>{win.appName} {win.processId ? `• PID ${win.processId}` : ''}</span>
                         {win.handle && win.handle !== '0' ? (
-                          <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                          <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-emerald-500/15 text-emerald-600">
                             Interactive
                           </span>
                         ) : (
-                          <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                          <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-sky-500/15 text-sky-600">
                             Preview
                           </span>
                         )}
@@ -209,7 +208,7 @@ export const AppShell: React.FC = () => {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => handleCreateMonitor(win)}
-                      className="px-2 py-1 rounded-mac text-[11px] font-medium bg-primary-500/10 hover:bg-primary-500 text-primary-600 dark:text-primary-400 hover:text-white transition-all flex items-center gap-1"
+                      className="px-2 py-1 rounded-mac text-[11px] font-medium bg-primary-500/10 hover:bg-primary-500 text-primary-600 hover:text-white transition-all flex items-center gap-1"
                       title="Turn into floating monitor"
                     >
                       <Plus size={11} /> Float
@@ -220,7 +219,7 @@ export const AppShell: React.FC = () => {
             )}
           </div>
 
-          <div className="p-2 border-t border-slate-200/50 dark:border-white/5 text-[10px] text-slate-400 text-center">
+          <div className="p-2 border-t border-slate-200 text-[10px] text-slate-400 text-center">
             Tip: Drag any app into the monitor zone
           </div>
         </section>
@@ -240,14 +239,14 @@ export const AppShell: React.FC = () => {
               'border-2 border-dashed rounded-mac-lg p-5 text-center transition-all flex flex-col items-center justify-center min-h-[110px]',
               isDragOver
                 ? 'border-primary-500 bg-primary-500/10 scale-[1.01]'
-                : 'border-slate-300/70 dark:border-white/10 hover:border-slate-400 dark:hover:border-white/20 bg-white/30 dark:bg-white/5'
+                : 'border-slate-300 hover:border-slate-400 bg-white/70'
             )}
           >
             <Tv size={24} className={isDragOver ? 'text-primary-500 animate-bounce' : 'text-slate-400 mb-1'} />
-            <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-1">
+            <h3 className="text-xs font-semibold text-slate-800 mt-1">
               {isDragOver ? 'Release to Create Floating Monitor' : 'Drag & Drop an Application Here'}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-sm">
+            <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm">
               Instantly spawns an independent floating window you can pin above all apps or keep in the background.
             </p>
           </div>
@@ -255,7 +254,7 @@ export const AppShell: React.FC = () => {
           {/* Active Floating Monitors List */}
           <div className="flex-1 flex flex-col space-y-2">
             <div className="flex items-center justify-between pb-1">
-              <h2 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <h2 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                 <Monitor size={13} /> Active Floating Monitors ({monitors.length})
               </h2>
               {monitors.length > 0 && (
@@ -266,9 +265,9 @@ export const AppShell: React.FC = () => {
             </div>
 
             {monitors.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center border border-slate-200/60 dark:border-white/5 rounded-mac-lg bg-white/20 dark:bg-white/5">
-                <Monitor size={32} className="text-slate-300 dark:text-slate-600 mb-2" />
-                <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center border border-slate-200 rounded-mac-lg bg-white/50">
+                <Monitor size={32} className="text-slate-300 mb-2" />
+                <h4 className="text-xs font-semibold text-slate-700">
                   No Floating Monitors Open
                 </h4>
                 <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
@@ -280,11 +279,11 @@ export const AppShell: React.FC = () => {
                 {monitors.map((mon) => (
                   <div
                     key={mon.id}
-                    className="p-3 rounded-mac-lg border border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-white/5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-white/20 transition-all"
+                    className="p-3 rounded-mac-lg border border-slate-200 bg-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-all"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        <span className="text-xs font-semibold text-slate-900 truncate">
                           {mon.title}
                         </span>
                         {/* Mode Badge: Interactive vs Visual Preview */}
@@ -299,7 +298,7 @@ export const AppShell: React.FC = () => {
                         {mon.isMinimized && <Badge variant="secondary">Minimized</Badge>}
                       </div>
 
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                      <div className="text-[11px] text-slate-500 flex items-center gap-3">
                         <span>Size: {mon.width} × {mon.height}px</span>
                         <span>Opacity: {Math.round(mon.opacity * 100)}%</span>
                       </div>
@@ -315,8 +314,8 @@ export const AppShell: React.FC = () => {
                         className={cn(
                           'px-2 py-1 rounded text-xs font-medium border flex items-center gap-1 transition-all',
                           mon.displayMode === 'embedded'
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                            : 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/25'
+                            ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/25'
+                            : 'bg-sky-500/15 text-sky-600 border-sky-500/30 hover:bg-sky-500/25'
                         )}
                         title={
                           mon.displayMode === 'embedded'
@@ -334,7 +333,7 @@ export const AppShell: React.FC = () => {
                           'px-2 py-1 rounded text-xs font-medium border flex items-center gap-1 transition-all',
                           mon.alwaysOnTop
                             ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
-                            : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-200 dark:hover:bg-white/10'
+                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                         )}
                         title={mon.alwaysOnTop ? 'Disable pin (Keep in background)' : 'Pin above other windows'}
                       >
@@ -348,56 +347,39 @@ export const AppShell: React.FC = () => {
                         className={cn(
                           'p-1.5 rounded text-xs border transition-all',
                           mon.isLocked
-                            ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
-                            : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10 hover:text-slate-800'
+                            ? 'bg-amber-500/20 text-amber-700 border-amber-300'
+                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                         )}
                         title={mon.isLocked ? 'Unlock position and size' : 'Lock position and size'}
                       >
                         {mon.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
                       </button>
 
-                      {/* Opacity Control Slider */}
-                      <div className="flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-white/5 rounded border border-slate-200 dark:border-white/10">
-                        <Sliders size={11} className="text-slate-400" />
-                        <input
-                          type="range"
-                          min="0.2"
-                          max="1.0"
-                          step="0.05"
-                          value={mon.opacity}
-                          onChange={(e) => setOpacity(mon.id, parseFloat(e.target.value))}
-                          className="w-14 h-1 accent-primary-500 cursor-pointer"
-                          title={`Adjust Opacity: ${Math.round(mon.opacity * 100)}%`}
-                        />
-                      </div>
-
                       {/* Focus Original App */}
-                      {mon.sourceWindowId && (
-                        <button
-                          onClick={() => focusSource(mon.id)}
-                          className="p-1.5 rounded bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-200 dark:border-white/10 transition-colors"
-                          title="Focus original application window"
-                        >
-                          <ExternalLink size={12} />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => focusSource(mon.id)}
+                        className="p-1.5 rounded text-xs border bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-all"
+                        title="Bring the original application to front"
+                      >
+                        <ExternalLink size={12} />
+                      </button>
 
-                      {/* Minimize / Restore */}
+                      {/* Minimize Monitor */}
                       <button
                         onClick={() => (mon.isMinimized ? restoreMonitor(mon.id) : minimizeMonitor(mon.id))}
-                        className="px-2 py-1 rounded text-xs font-medium bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-200 transition-colors"
+                        className="px-2 py-1 rounded text-xs border bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-all"
                         title={mon.isMinimized ? 'Restore window' : 'Minimize window'}
                       >
                         {mon.isMinimized ? 'Restore' : 'Min'}
                       </button>
 
-                      {/* Close Window */}
+                      {/* Close Monitor */}
                       <button
                         onClick={() => closeMonitor(mon.id)}
-                        className="p-1.5 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-                        title="Close floating monitor"
+                        className="p-1.5 rounded text-xs text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all"
+                        title="Close monitor"
                       >
-                        <X size={13} />
+                        <X size={12} />
                       </button>
                     </div>
                   </div>
@@ -418,14 +400,14 @@ export const AppShell: React.FC = () => {
       >
         <div className="space-y-4 pt-1">
           {/* Settings Tab Navigation */}
-          <div className="flex items-center gap-2 border-b border-slate-200/60 dark:border-white/10 pb-2">
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
             <button
               onClick={() => setActiveSettingsTab('appearance')}
               className={cn(
                 'px-3 py-1 rounded-mac text-xs font-medium transition-colors',
                 activeSettingsTab === 'appearance'
                   ? 'bg-primary-500 text-white'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5'
+                  : 'text-slate-600 hover:bg-slate-200/50'
               )}
             >
               Preferences
@@ -436,7 +418,7 @@ export const AppShell: React.FC = () => {
                 'px-3 py-1 rounded-mac text-xs font-medium transition-colors',
                 activeSettingsTab === 'database'
                   ? 'bg-primary-500 text-white'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5'
+                  : 'text-slate-600 hover:bg-slate-200/50'
               )}
             >
               Database & Storage
@@ -445,37 +427,14 @@ export const AppShell: React.FC = () => {
 
           {activeSettingsTab === 'appearance' ? (
             <div className="space-y-4 text-xs">
-              {/* Theme Mode */}
-              <div>
-                <label className="block font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-                  Theme Appearance
-                </label>
-                <div className="flex items-center gap-2">
-                  {(['dark', 'light', 'system'] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTheme(t)}
-                      className={cn(
-                        'px-3 py-1.5 rounded-mac border text-xs font-medium capitalize transition-all',
-                        settings.theme === t
-                          ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
-                          : 'border-slate-300/60 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50'
-                      )}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Default Floating Monitor Behavior */}
-              <div className="space-y-2 pt-2 border-t border-slate-200/50 dark:border-white/5">
-                <label className="flex items-center justify-between p-2 rounded-mac hover:bg-slate-200/40 dark:hover:bg-white/5 cursor-pointer">
+              <div className="space-y-2">
+                <label className="flex items-center justify-between p-2 rounded-mac hover:bg-slate-100 cursor-pointer">
                   <div>
-                    <div className="font-medium text-slate-800 dark:text-slate-200">
+                    <div className="font-medium text-slate-800">
                       Default: Always on Top (Pinned)
                     </div>
-                    <div className="text-[10px] text-slate-400">
+                    <div className="text-[10px] text-slate-500">
                       When enabled, newly created floating monitors default to always-on-top. Otherwise, they start in background mode.
                     </div>
                   </div>
@@ -487,12 +446,12 @@ export const AppShell: React.FC = () => {
                   />
                 </label>
 
-                <label className="flex items-center justify-between p-2 rounded-mac hover:bg-slate-200/40 dark:hover:bg-white/5 cursor-pointer">
+                <label className="flex items-center justify-between p-2 rounded-mac hover:bg-slate-100 cursor-pointer">
                   <div>
-                    <div className="font-medium text-slate-800 dark:text-slate-200">
+                    <div className="font-medium text-slate-800">
                       Restore Session on Startup
                     </div>
-                    <div className="text-[10px] text-slate-400">
+                    <div className="text-[10px] text-slate-500">
                       Automatically reload open floating monitors from SQLite database upon launching Float-Space.
                     </div>
                   </div>
@@ -506,8 +465,8 @@ export const AppShell: React.FC = () => {
               </div>
 
               {/* Frame rate */}
-              <div className="pt-2 border-t border-slate-200/50 dark:border-white/5">
-                <label className="block font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+              <div className="pt-2 border-t border-slate-200">
+                <label className="block font-semibold text-slate-800 mb-1.5">
                   Capture Frame Rate
                 </label>
                 <div className="flex items-center gap-2">
@@ -519,7 +478,7 @@ export const AppShell: React.FC = () => {
                         'px-3 py-1 rounded-mac border text-xs font-medium transition-all',
                         settings.captureFrameRate === fps
                           ? 'bg-primary-500 text-white border-primary-500'
-                          : 'border-slate-300/60 dark:border-white/10 text-slate-600 dark:text-slate-400'
+                          : 'border-slate-300 text-slate-600 hover:bg-slate-50'
                       )}
                     >
                       {fps} FPS
@@ -532,7 +491,7 @@ export const AppShell: React.FC = () => {
             <DatabaseSettings />
           )}
 
-          <div className="flex justify-end pt-2 border-t border-slate-200/50 dark:border-white/10">
+          <div className="flex justify-end pt-2 border-t border-slate-200">
             <Button size="sm" variant="secondary" onClick={() => setSettingsOpen(false)}>
               Done
             </Button>
