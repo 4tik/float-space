@@ -1,82 +1,64 @@
 import { FloatingWindowConfig, Workspace, MonitorGroup } from '../types/floating-monitor';
 import { InstalledApplication, RunningWindowInfo } from '../types/application';
-import { PhysicalDisplay } from '../types/display';
+import { PhysicalDisplay, SnapPosition } from '../types/display';
+import { AppSettings, Profile } from '../types/settings';
 
 export const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
 
-// Default memory fallback store for standalone browser preview/tests
-let fallbackMonitors: FloatingWindowConfig[] = [
-  {
-    id: 'mon-1',
-    title: 'Code Editor (Live)',
-    displayMode: 'live-monitor',
-    positionX: 80,
-    positionY: 100,
-    width: 480,
-    height: 320,
-    opacity: 1.0,
-    alwaysOnTop: true,
-    isLocked: false,
-    isActive: true,
-    isMinimized: false,
-    isMaximized: false,
-    workspaceId: 'ws-dev',
-    groupId: 'grp-dev',
-    displayId: 0,
-    compactToolbar: false,
-    hideToolbar: false,
-    captureFrameRate: 30,
-    captureQuality: 'medium',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'mon-2',
-    title: 'Terminal / Server Log',
-    displayMode: 'live-monitor',
-    positionX: 580,
-    positionY: 100,
-    width: 440,
-    height: 300,
-    opacity: 0.95,
-    alwaysOnTop: true,
-    isLocked: false,
-    isActive: true,
-    isMinimized: false,
-    isMaximized: false,
-    workspaceId: 'ws-dev',
-    groupId: 'grp-dev',
-    displayId: 0,
-    compactToolbar: false,
-    hideToolbar: false,
-    captureFrameRate: 30,
-    captureQuality: 'high',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+export interface DatabaseMetadataItem {
+  id: string;
+  filename: string;
+  filepath: string;
+  timestamp: string;
+  reason: string;
+  sizeBytes: number;
+  schemaVersion: number;
+}
 
-let fallbackWorkspaces: Workspace[] = [
-  { id: 'ws-dev', name: 'Development', description: 'VS Code, Terminal, Browser dev tools', sortOrder: 0, createdAt: '', updatedAt: '' },
-  { id: 'ws-mon', name: 'Monitoring', description: 'System monitor, Metrics, Database tools', sortOrder: 1, createdAt: '', updatedAt: '' },
-  { id: 'ws-comm', name: 'Communication', description: 'Chat, Email, Calendar, Meetings', sortOrder: 2, createdAt: '', updatedAt: '' },
-  { id: 'ws-personal', name: 'Personal', description: 'Music, Notes, Web Reference', sortOrder: 3, createdAt: '', updatedAt: '' },
-];
+export interface DatabaseInfoResponse {
+  status: 'healthy' | 'degraded' | 'error';
+  engine: string;
+  version: string;
+  location: string;
+  sizeBytes: number;
+  schemaVersion: number;
+  lastBackup: string | null;
+  backupsCount: number;
+  tablesCount: number;
+  tableStats: Record<string, number>;
+  metadata: {
+    created_at: string;
+    last_opened: string;
+    last_backup: string | null;
+    schema_version: number;
+    backups: DatabaseMetadataItem[];
+  };
+}
 
-let fallbackGroups: MonitorGroup[] = [
-  { id: 'grp-dev', workspaceId: 'ws-dev', name: 'Dev Tools', sortOrder: 0, monitorIds: ['mon-1', 'mon-2'], createdAt: '', updatedAt: '' },
-  { id: 'grp-mon', workspaceId: 'ws-mon', name: 'Metrics', sortOrder: 0, monitorIds: [], createdAt: '', updatedAt: '' },
-];
+export interface SystemInfoResponse {
+  platform: string;
+  arch: string;
+  nodeVersion: string;
+  electronVersion: string;
+  capabilities: {
+    platform: string;
+    canEmbed: boolean;
+    canCapture: boolean;
+    requiresPermissions: boolean;
+    desktopEnvironment?: string;
+    notes: string;
+  };
+}
 
 export const ipcClient = {
   async getWindows(): Promise<FloatingWindowConfig[]> {
     if (isElectron) return await window.electronAPI.getAllWindows();
-    return [...fallbackMonitors];
+    return [];
   },
 
   async createWindow(config: Partial<FloatingWindowConfig> & { title: string }): Promise<FloatingWindowConfig> {
     if (isElectron) return await window.electronAPI.createWindow(config);
-    const newMon: FloatingWindowConfig = {
+    return {
       id: `mon-${Date.now()}`,
       title: config.title,
       displayMode: config.displayMode || 'live-monitor',
@@ -100,200 +82,159 @@ export const ipcClient = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    fallbackMonitors.push(newMon);
-    return newMon;
   },
 
   async closeWindow(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.closeWindow(id);
-    fallbackMonitors = fallbackMonitors.filter(m => m.id !== id);
     return true;
   },
 
   async minimizeWindow(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.minimizeWindow(id);
-    const m = fallbackMonitors.find(x => x.id === id);
-    if (m) m.isMinimized = true;
     return true;
   },
 
   async maximizeWindow(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.maximizeWindow(id);
-    const m = fallbackMonitors.find(x => x.id === id);
-    if (m) m.isMaximized = !m.isMaximized;
     return true;
   },
 
   async restoreWindow(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.restoreWindow(id);
-    const m = fallbackMonitors.find(x => x.id === id);
-    if (m) m.isMinimized = false;
     return true;
   },
 
-  async setBounds(id: string, bounds: any): Promise<boolean> {
+  async setBounds(id: string, bounds: { x?: number; y?: number; width?: number; height?: number }): Promise<boolean> {
     if (isElectron) return await window.electronAPI.setBounds(id, bounds);
-    const m = fallbackMonitors.find(x => x.id === id);
-    if (m) {
-      if (bounds.x !== undefined) m.positionX = bounds.x;
-      if (bounds.y !== undefined) m.positionY = bounds.y;
-      if (bounds.width !== undefined) m.width = bounds.width;
-      if (bounds.height !== undefined) m.height = bounds.height;
-    }
     return true;
   },
 
   async setOpacity(id: string, opacity: number): Promise<boolean> {
     if (isElectron) return await window.electronAPI.setOpacity(id, opacity);
-    const m = fallbackMonitors.find(x => x.id === id);
-    if (m) m.opacity = opacity;
     return true;
   },
 
   async setAlwaysOnTop(id: string, alwaysOnTop: boolean): Promise<boolean> {
     if (isElectron) return await window.electronAPI.setAlwaysOnTop(id, alwaysOnTop);
-    const m = fallbackMonitors.find(x => x.id === id);
-    if (m) m.alwaysOnTop = alwaysOnTop;
     return true;
   },
 
   async setLocked(id: string, isLocked: boolean): Promise<boolean> {
     if (isElectron) return await window.electronAPI.setLocked(id, isLocked);
-    const m = fallbackMonitors.find(x => x.id === id);
-    if (m) m.isLocked = isLocked;
     return true;
   },
 
-  async snapWindow(id: string, snap: string, displayId?: number) {
+  async hideAllWindows(): Promise<boolean> {
+    if (isElectron) return await window.electronAPI.hideAllWindows();
+    return true;
+  },
+
+  async showAllWindows(): Promise<boolean> {
+    if (isElectron) return await window.electronAPI.showAllWindows();
+    return true;
+  },
+
+  async snapWindow(id: string, snap: SnapPosition, displayId?: number): Promise<{ x: number; y: number; width: number; height: number } | null> {
     if (isElectron) return await window.electronAPI.snapWindow(id, snap, displayId);
     return null;
   },
 
-  async autoArrange(workspaceId?: string, displayId?: number) {
+  async autoArrange(workspaceId?: string, displayId?: number): Promise<boolean> {
     if (isElectron) return await window.electronAPI.autoArrangeWindows(workspaceId, displayId);
     return true;
   },
 
   async getAllDisplays(): Promise<PhysicalDisplay[]> {
     if (isElectron) return await window.electronAPI.getAllDisplays();
-    return [
-      {
-        id: 1,
-        label: 'Built-in Display (1920x1080)',
-        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
-        workArea: { x: 0, y: 0, width: 1920, height: 1040 },
-        scaleFactor: 1,
-        isPrimary: true,
-        rotation: 0,
-      },
-    ];
+    return [];
   },
 
   async getInstalledApplications(): Promise<InstalledApplication[]> {
     if (isElectron) return await window.electronAPI.getInstalledApplications();
-    return [
-      { id: 'app-vs-code', name: 'Visual Studio Code', executablePath: 'code.exe', platform: 'win32' },
-      { id: 'app-terminal', name: 'Terminal / PowerShell', executablePath: 'powershell.exe', platform: 'win32' },
-      { id: 'app-chrome', name: 'Google Chrome', executablePath: 'chrome.exe', platform: 'win32' },
-      { id: 'app-notepad', name: 'Notepad', executablePath: 'notepad.exe', platform: 'win32' },
-      { id: 'app-calc', name: 'Calculator', executablePath: 'calc.exe', platform: 'win32' },
-      { id: 'app-taskmgr', name: 'Task Manager', executablePath: 'taskmgr.exe', platform: 'win32' },
-    ];
+    return [];
   },
 
   async getRunningWindows(): Promise<RunningWindowInfo[]> {
     if (isElectron) return await window.electronAPI.getRunningWindows();
-    return [
-      { id: 'win-101', sourceId: 'window:101:0', title: 'VS Code - float-space', appName: 'Code', processId: 1420 },
-      { id: 'win-102', sourceId: 'window:102:0', title: 'Windows PowerShell', appName: 'PowerShell', processId: 5880 },
-      { id: 'win-103', sourceId: 'window:103:0', title: 'Google Chrome - Dashboard', appName: 'Chrome', processId: 8124 },
-    ];
+    return [];
   },
 
-  async launchApplication(path: string) {
+  async launchApplication(path: string): Promise<{ success: boolean; pid?: number; error?: string }> {
     if (isElectron) return await window.electronAPI.launchApplication(path);
     return { success: true };
   },
 
-  async focusWindow(windowId: string, processId?: number) {
+  async focusWindow(windowId: string, processId?: number): Promise<boolean> {
     if (isElectron) return await window.electronAPI.focusWindow(windowId, processId);
     return true;
   },
 
   async getWorkspaces(): Promise<Workspace[]> {
     if (isElectron) return await window.electronAPI.getWorkspaces();
-    return [...fallbackWorkspaces];
+    return [];
   },
 
-  async saveWorkspace(ws: any) {
+  async saveWorkspace(ws: Partial<Workspace> & { id: string; name: string }): Promise<boolean> {
     if (isElectron) return await window.electronAPI.saveWorkspace(ws);
-    const idx = fallbackWorkspaces.findIndex(x => x.id === ws.id);
-    if (idx >= 0) fallbackWorkspaces[idx] = ws;
-    else fallbackWorkspaces.push(ws);
     return true;
   },
 
-  async deleteWorkspace(id: string) {
+  async deleteWorkspace(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.deleteWorkspace(id);
-    fallbackWorkspaces = fallbackWorkspaces.filter(x => x.id !== id);
     return true;
   },
 
-  async switchWorkspace(id: string) {
+  async switchWorkspace(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.switchWorkspace(id);
     return true;
   },
 
   async getGroups(): Promise<MonitorGroup[]> {
     if (isElectron) return await window.electronAPI.getGroups();
-    return [...fallbackGroups];
+    return [];
   },
 
-  async saveGroup(grp: any) {
+  async saveGroup(grp: Partial<MonitorGroup> & { id: string; workspaceId: string; name: string }): Promise<boolean> {
     if (isElectron) return await window.electronAPI.saveGroup(grp);
-    const idx = fallbackGroups.findIndex(x => x.id === grp.id);
-    if (idx >= 0) fallbackGroups[idx] = grp;
-    else fallbackGroups.push(grp);
     return true;
   },
 
-  async deleteGroup(id: string) {
+  async deleteGroup(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.deleteGroup(id);
-    fallbackGroups = fallbackGroups.filter(x => x.id !== id);
     return true;
   },
 
-  async getProfiles() {
+  async getProfiles(): Promise<Profile[]> {
     if (isElectron) return await window.electronAPI.getProfiles();
     return [];
   },
 
-  async saveProfile(p: any) {
+  async saveProfile(p: { id: string; name: string; description?: string; monitors: any[] }): Promise<boolean> {
     if (isElectron) return await window.electronAPI.saveProfile(p);
     return true;
   },
 
-  async applyProfile(id: string) {
+  async applyProfile(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.applyProfile(id);
     return true;
   },
 
-  async deleteProfile(id: string) {
+  async deleteProfile(id: string): Promise<boolean> {
     if (isElectron) return await window.electronAPI.deleteProfile(id);
     return true;
   },
 
-  async getSettings() {
+  async getSettings(): Promise<Record<string, string>> {
     if (isElectron) return await window.electronAPI.getSettings();
     return {};
   },
 
-  async saveSettings(settings: any) {
+  async saveSettings(settings: Partial<AppSettings>): Promise<boolean> {
     if (isElectron) return await window.electronAPI.saveSettings(settings);
     return true;
   },
 
-  async getSystemInfo() {
+  async getSystemInfo(): Promise<SystemInfoResponse> {
     if (isElectron) return await window.electronAPI.getSystemInfo();
     return {
       platform: 'win32',
@@ -312,96 +253,79 @@ export const ipcClient = {
   },
 
   // FloatDesk Local Database Operations
-  async getDatabaseInfo() {
+  async getDatabaseInfo(): Promise<DatabaseInfoResponse> {
     if (isElectron) return await window.electronAPI.getDatabaseInfo();
     return {
       status: 'healthy',
       engine: 'SQLite 3 (Embedded WASM/sql.js)',
       version: '3.46.0',
       location: 'FloatDesk/database/floatdesk.db',
-      sizeBytes: 131072,
+      sizeBytes: 0,
       schemaVersion: 1,
-      lastBackup: new Date().toISOString(),
-      backupsCount: 2,
+      lastBackup: null,
+      backupsCount: 0,
       tablesCount: 13,
-      tableStats: {
-        applications: 6,
-        floating_monitors: 2,
-        workspaces: 4,
-        monitor_groups: 4,
-        application_settings: 6,
-        keyboard_shortcuts: 2,
-      },
+      tableStats: {},
       metadata: {
         created_at: new Date().toISOString(),
         last_opened: new Date().toISOString(),
-        last_backup: new Date().toISOString(),
+        last_backup: null,
         schema_version: 1,
-        backups: [
-          {
-            id: 'backup-1',
-            filename: 'floatdesk-backup-2026-11-17-pre-migration.db',
-            filepath: 'FloatDesk/database/backups/floatdesk-backup-2026-11-17-pre-migration.db',
-            timestamp: new Date().toISOString(),
-            reason: 'pre-migration',
-            sizeBytes: 131072,
-            schemaVersion: 1,
-          },
-        ],
+        backups: [],
       },
     };
   },
 
-  async createDatabaseBackup(reason?: string) {
+  async createDatabaseBackup(reason?: string): Promise<{ success: boolean; path?: string | null }> {
     if (isElectron) return await window.electronAPI.createDatabaseBackup(reason);
-    return { success: true, path: 'FloatDesk/database/backups/floatdesk-backup-manual.db' };
+    return { success: true };
   },
 
-  async restoreDatabaseBackup(backupPath: string) {
+  async restoreDatabaseBackup(backupPath: string): Promise<{ success: boolean; error?: string }> {
     if (isElectron) return await window.electronAPI.restoreDatabaseBackup(backupPath);
     return { success: true };
   },
 
-  async exportDatabase() {
+  async exportDatabase(): Promise<{ success: boolean; path?: string }> {
     if (isElectron) return await window.electronAPI.exportDatabase();
-    return { success: true, path: 'floatdesk-export.db' };
+    return { success: true };
   },
 
-  async importDatabase() {
+  async importDatabase(): Promise<{ success: boolean; path?: string; error?: string }> {
     if (isElectron) return await window.electronAPI.importDatabase();
-    return { success: true, path: 'imported.db' };
+    return { success: true };
   },
 
-  async checkDatabaseIntegrity() {
+  async checkDatabaseIntegrity(): Promise<{ healthy: boolean; issues: string[] }> {
     if (isElectron) return await window.electronAPI.checkDatabaseIntegrity();
     return { healthy: true, issues: [] };
   },
 
-  async resetDatabase() {
+  async resetDatabase(): Promise<{ success: boolean; error?: string }> {
     if (isElectron) return await window.electronAPI.resetDatabase();
     return { success: true };
   },
 
-  async openDatabaseDirectory() {
+  async openDatabaseDirectory(): Promise<boolean> {
     if (isElectron) return await window.electronAPI.openDatabaseDirectory();
     return true;
   },
 
-  minimizeMain() {
+  minimizeMain(): void {
     if (isElectron) window.electronAPI.minimizeMain();
   },
-  maximizeMain() {
+  maximizeMain(): void {
     if (isElectron) window.electronAPI.maximizeMain();
   },
-  closeMain() {
+  closeMain(): void {
     if (isElectron) window.electronAPI.closeMain();
   },
 
-  onWindowStateChanged(cb: (config: any) => void) {
+  onWindowStateChanged(cb: (config: FloatingWindowConfig) => void): () => void {
     if (isElectron) return window.electronAPI.onWindowStateChanged(cb);
     return () => {};
   },
-  onDisplayChanged(cb: () => void) {
+  onDisplayChanged(cb: () => void): () => void {
     if (isElectron) return window.electronAPI.onDisplayChanged(cb);
     return () => {};
   },

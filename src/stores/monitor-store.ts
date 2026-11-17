@@ -133,10 +133,11 @@ export const useMonitorStore = create<MonitorState>((set, get) => ({
   selectMonitor: (id) => set({ selectedMonitorId: id }),
 
   hideAllMonitors: async () => {
-    await ipcClient.closeWindow('all');
+    await ipcClient.hideAllWindows();
   },
 
   showAllMonitors: async () => {
+    await ipcClient.showAllWindows();
     await get().loadMonitors();
   },
 

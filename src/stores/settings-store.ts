@@ -49,7 +49,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         const merged: any = { ...defaultSettings };
         for (const [k, v] of Object.entries(saved)) {
           try {
-            merged[k] = JSON.parse(v);
+            merged[k] = typeof v === 'string' ? JSON.parse(v) : v;
           } catch {
             merged[k] = v;
           }
