@@ -19,8 +19,7 @@
         "target": "portable",
         "arch": ["x64"]
       }
-    ],
-    "artifactName": "Float-Space-${target}-${version}.${ext}"
+    ]
   },
   "nsis": {
     "oneClick": false,
@@ -31,7 +30,8 @@
     "shortcutName": "Float-Space",
     "uninstallDisplayName": "Float-Space",
     "deleteAppDataOnUninstall": false,
-    "runAfterFinish": true
+    "runAfterFinish": true,
+    "artifactName": "Float-Space-Setup-${version}.${ext}"
   },
   "portable": {
     "artifactName": "Float-Space-Portable-${version}.${ext}"

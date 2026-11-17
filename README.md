@@ -10,13 +10,22 @@
 **Float-Space** (Application ID: `com.floatspace.desktop`) is an independent, native desktop utility built for **Windows**, **macOS**, and **Linux**. It follows the installation and user experience approach of desktop utilities such as TurboTop, enabling users to monitor, organize, and manage running desktop applications across multi-display setups using independent, floating native windows.
 
 ### Core Features
+- **Drag-and-Drop Monitor Creation**: Drag any detected desktop application or browser window directly onto the Float-Space monitor drop zone to create an independent floating monitor in one seamless action.
 - **Independent Floating Windows**: True multi-window native desktop manager where each floating monitor runs as its own frameless window (`BrowserWindow`) with independent always-on-top, opacity, and locking controls.
+- **Always on Top (Pin) vs Background Mode**: Keep monitors pinned above all other windows when actively monitoring, or switch to background mode where the monitor remains visible behind other windows without closing or terminating the original application.
 - **Hardware-Accelerated Live Previews**: Captures external application windows in real time using native `desktopCapturer` and WebRTC media streams with zero screenshot polling.
-- **macOS Mission Control**: A visual overview grid of all managed floating monitors with instant focus and auto-arrangement.
-- **Stage Manager-Style Groups**: Collapsible group management (Development, Monitoring, Communication, Personal) that shows and hides floating monitors dynamically without terminating underlying processes.
-- **Application-Managed Workspaces (Spaces)**: Virtual workspaces that preserve window positions, dimensions, and display assignments.
-- **Window Snapping & Layout Presets**: Snapping to screen halves, quadrants, center, full display, and customizable grid layouts with multi-display bounds clamping.
+- **Window Snapping & Transparency**: Smooth opacity adjustment (20%–100%), position locking to prevent accidental drags, and edge/corner resizing.
+- **Focus Original Application**: Instant one-click activation to bring the source desktop app to the foreground.
 - **Mandatory Embedded Local SQLite**: Automatic, self-contained local database persistence with versioned migrations, online backups, and diagnostic controls.
+
+### Simple User Workflow
+```text
+1. Open Float-Space.
+2. Detect currently running applications and browser windows automatically.
+3. Drag and drop a window onto the Float-Space monitor drop area (or click "+ Monitor").
+4. Enjoy an independent floating monitor with real-time video preview.
+5. Pin (Always on Top) or keep in Background Mode as needed.
+```
 
 ### Desktop-Only Scope
 Float-Space is designed exclusively for native desktop operating systems:
