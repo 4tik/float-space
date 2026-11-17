@@ -1,5 +1,5 @@
 import { FloatingWindowConfig, Workspace, MonitorGroup } from '../types/floating-monitor';
-import { InstalledApplication, RunningWindowInfo } from '../types/application';
+import { InstalledApplication, RunningWindowInfo, DisplayMode } from '../types/application';
 import { PhysicalDisplay, SnapPosition } from '../types/display';
 import { AppSettings, Profile } from '../types/settings';
 
@@ -121,6 +121,16 @@ export const ipcClient = {
 
   async setLocked(id: string, isLocked: boolean): Promise<boolean> {
     if (isElectron) return await window.electronAPI.setLocked(id, isLocked);
+    return true;
+  },
+
+  async setDisplayMode(id: string, mode: DisplayMode): Promise<FloatingWindowConfig | undefined> {
+    if (isElectron) return await window.electronAPI.setDisplayMode(id, mode);
+    return undefined;
+  },
+
+  async detachWindow(id: string): Promise<boolean> {
+    if (isElectron) return await window.electronAPI.detachWindow(id);
     return true;
   },
 

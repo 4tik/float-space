@@ -15,6 +15,9 @@ export const electronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.WINDOW_SET_ALWAYS_ON_TOP, { id, alwaysOnTop }),
   setLocked: (id: string, isLocked: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.WINDOW_SET_LOCKED, { id, isLocked }),
+  setDisplayMode: (id: string, mode: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.WINDOW_SET_DISPLAY_MODE, { id, mode }),
+  detachWindow: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_DETACH, id),
   hideAllWindows: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_HIDE_ALL),
   showAllWindows: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_SHOW_ALL),
   snapWindow: (id: string, snap: string, displayId?: number) =>

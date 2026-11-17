@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import initSqlJs, { Database } from 'sql.js';
 import { INITIAL_SCHEMA_SQL, CURRENT_SCHEMA_VERSION } from '../electron/database/schema';
-import { MigrationRunner } from '../electron/database/migrations';
+import { MigrationRunner, MIGRATIONS } from '../electron/database/migrations';
 import { ApplicationRepository } from '../electron/database/repositories/application.repo';
 import { FloatingMonitorRepository } from '../electron/database/repositories/floating-monitor.repo';
 import { WorkspaceRepository } from '../electron/database/repositories/workspace.repo';
@@ -37,7 +37,8 @@ describe('Float-Space Mandatory Local SQLite Architecture', () => {
     db.run("PRAGMA foreign_keys = ON;");
     db.run("PRAGMA journal_mode = WAL;");
     db.run("PRAGMA synchronous = NORMAL;");
-    db.run(INITIAL_SCHEMA_SQL);
+    const runner = new MigrationRunner();
+    await runner.runMigrations(db, async () => null);
   });
 
   afterEach(() => {
@@ -96,9 +97,10 @@ describe('Float-Space Mandatory Local SQLite Architecture', () => {
     expect(result.currentVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(backupCalled).toBe(true);
 
-    const migRows = freshDb.exec("SELECT version, name FROM _migrations");
-    expect(migRows[0].values.length).toBe(1);
+    const migRows = freshDb.exec("SELECT version, name FROM _migrations ORDER BY version ASC");
+    expect(migRows[0].values.length).toBe(MIGRATIONS.length);
     expect(migRows[0].values[0][0]).toBe(1);
+    expect(migRows[0].values[1][0]).toBe(2);
   });
 
   it('4. should pass PRAGMA integrity_check', () => {

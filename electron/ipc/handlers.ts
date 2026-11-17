@@ -64,6 +64,14 @@ export function registerIpcHandlers(): void {
     return true;
   });
 
+  ipcMain.handle(IPC_CHANNELS.WINDOW_SET_DISPLAY_MODE, async (_, { id, mode }) => {
+    return await windowManager.setDisplayMode(id, mode);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.WINDOW_DETACH, async (_, id: string) => {
+    return await windowManager.detach(id);
+  });
+
   ipcMain.handle(IPC_CHANNELS.WINDOW_HIDE_ALL, () => {
     windowManager.hideAll();
     return true;

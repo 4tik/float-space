@@ -1,75 +1,87 @@
 # Float-Space
 
-> **Cross-Platform Native Desktop Floating Workspace & Application Manager**  
-> An independent desktop utility combining macOS Mission Control, Stage Manager, Spaces, Picture-in-Picture, and native window management into one unified native desktop application.
+> **Interactive Desktop Floating Application Monitor for Windows & macOS**  
+> Display any running desktop application or browser window inside a compact, resizable, movable floating monitor. Interact with it directly through native window embedding, or monitor it via hardware-accelerated live visual capture.
 
 ---
 
-## 1. Project Overview
+## 1. Project Overview & Features
 
-**Float-Space** (Application ID: `com.floatspace.desktop`) is an independent, native desktop utility built for **Windows**, **macOS**, and **Linux**. It follows the installation and user experience approach of desktop utilities such as TurboTop, enabling users to monitor, organize, and manage running desktop applications across multi-display setups using independent, floating native windows.
+**Float-Space** (Application ID: `com.floatspace.desktop`) is a lightweight native desktop application built for **Windows** and **macOS** (with Linux compatibility). It functions like a Picture-in-Picture (PiP) utility for entire desktop applications.
+
+### User Workflow
+1. **Launch Float-Space**: Opens a clean, compact desktop utility.
+2. **Detect Running Applications**: Automatically enumerates open desktop application windows and supported browser tabs.
+3. **Select or Drag-and-Drop**: Drag any application window directly onto the Float-Space monitor area, or click **Float**.
+4. **Interactive Mini Monitor**: The application is displayed inside an independent floating window.
+5. **Direct Interaction**: When natively embedded, click, scroll, type text, and use keyboard shortcuts inside the floating monitor.
+6. **Reposition, Resize & Pin**: Move the monitor anywhere, resize from any edge or corner, and toggle **Always on Top (Pin)** vs **Background Mode**.
 
 ### Core Features
-- **Drag-and-Drop Monitor Creation**: Drag any detected desktop application or browser window directly onto the Float-Space monitor drop zone to create an independent floating monitor in one seamless action.
-- **Independent Floating Windows**: True multi-window native desktop manager where each floating monitor runs as its own frameless window (`BrowserWindow`) with independent always-on-top, opacity, and locking controls.
-- **Always on Top (Pin) vs Background Mode**: Keep monitors pinned above all other windows when actively monitoring, or switch to background mode where the monitor remains visible behind other windows without closing or terminating the original application.
-- **Hardware-Accelerated Live Previews**: Captures external application windows in real time using native `desktopCapturer` and WebRTC media streams with zero screenshot polling.
-- **Window Snapping & Transparency**: Smooth opacity adjustment (20%–100%), position locking to prevent accidental drags, and edge/corner resizing.
-- **Focus Original Application**: Instant one-click activation to bring the source desktop app to the foreground.
-- **Mandatory Embedded Local SQLite**: Automatic, self-contained local database persistence with versioned migrations, online backups, and diagnostic controls.
+- **Native Interactive Window Embedding (Windows Win32)**: Uses native OS reparenting (`SetParent`) to embed the actual application window into the floating monitor. Mouse clicks, double clicks, right clicks, scrolling, text typing, and keyboard focus are routed natively by Windows OS directly into the application.
+- **Hardware-Accelerated Live Visual Capture (macOS & Fallback)**: For platforms where the operating system prohibits cross-process window reparenting (such as macOS WindowServer) or for sandboxed UWP windows, Float-Space provides high-performance WebRTC video streaming (`desktopCapturer` + `getUserMedia`) with clear status badges and instant one-click source application focusing.
+- **Strict Mode Distinction**: Float-Space clearly labels every monitor:
+  - `[Native Interactive]`: Direct mouse, typing, and scrolling active.
+  - `[Live Visual Preview]`: Non-interactive visual capture fallback. Never pretends that a captured preview is interactive.
+- **Always on Top (Pin) vs Background Mode**:
+  - **Pinned Mode**: Stays floating above all full-screen apps and virtual desktops.
+  - **Background Mode**: When unpinned, acts like a normal desktop window that stays visible behind active work without closing or interrupting the source application.
+- **Smooth Opacity & Position Locking**: Adjust window transparency from 20% to 100%, and toggle position lock to prevent accidental repositioning.
+- **Zero-Data Loss Detachment**: Closing or un-embedding a monitor restores the target application back to the desktop root without terminating its process.
+- **Mandatory Embedded Local SQLite Database**: Automatically persists all monitor geometries, positions, pin states, opacities, and preferences with atomic versioned migrations and automatic backups.
 
-### Simple User Workflow
-```text
-1. Open Float-Space.
-2. Detect currently running applications and browser windows automatically.
-3. Drag and drop a window onto the Float-Space monitor drop area (or click "+ Monitor").
-4. Enjoy an independent floating monitor with real-time video preview.
-5. Pin (Always on Top) or keep in Background Mode as needed.
-```
+---
 
-### Desktop-Only Scope
-Float-Space is designed exclusively for native desktop operating systems:
-- Optimized for desktop displays, mouse dragging, edge/corner resizing, and global system keyboard shortcuts.
-- **No web dashboards, landing pages, PWAs, or mobile interfaces**.
-- **No external database servers, cloud backends, or internet connectivity required**.
-- **No terminal commands required for end users to launch the installed application**.
+## 2. Technology Stack & Architecture
 
-### Technology Stack
 - **Desktop Runtime**: Electron 33 (multi-process architecture with strict context isolation)
-- **User Interface**: React 18, TypeScript 5, and Tailwind CSS (macOS-inspired translucent design system)
-- **State Management**: Zustand 5 (reactive in-memory UI state synchronized with SQLite)
-- **Database & Persistence**: SQLite 3 (sql.js embedded WebAssembly runtime) with Drizzle ORM schema definitions
-- **Build & Bundler**: Vite 6 (renderer) and TypeScript compiler `tsc` (Electron main & preload)
-- **Packaging**: Electron Builder 25 (NSIS Installer, Portable, DMG, AppImage, Deb)
-- **Testing**: Vitest 2
+- **User Interface**: React 18, TypeScript 5, and Tailwind CSS (macOS glassmorphic design system)
+- **State Management**: Zustand 5 (synchronized with local SQLite persistence)
+- **Local Database**: Embedded SQLite 3 (`sql.js` WebAssembly runtime) with Drizzle ORM typed schema definitions
+- **Native OS Bridges**:
+  - **Windows (Win32)**: P/Invoke bridge (`SetParent`, `MoveWindow`, `SetWindowLong`, `SetWindowPos`) for genuine cross-process window embedding, plus Win32 process enumeration.
+  - **macOS (AppKit / WindowServer)**: AppleScript window activation, Accessibility API integration, and ScreenCaptureKit / `desktopCapturer` media pipeline.
+- **Bundler & Build Toolchain**: Vite 6 (renderer) and TypeScript compiler `tsc` (Electron main & preload)
+- **Packaging Engine**: Electron Builder 25 (NSIS installer, portable executable, macOS DMG, macOS App bundle)
+- **Automated Testing**: Vitest 2
 
 ---
 
-## 2. Prerequisites
+## 3. Native Embedding vs. Live Visual Capture
 
-Ensure your development environment meets the following requirements before building or packaging Float-Space:
+Float-Space enforces an honest, transparent distinction between native interactive window embedding and live visual capture:
 
-| Requirement | Supported Version | Notes |
+| Capability | Native Interactive Embedding (`embedded`) | Live Visual Preview (`live-monitor`) |
 |---|---|---|
-| **Node.js** | `^20.18.0` or `^22.10.0` (Tested on `v24.21.0`) | LTS versions recommended |
-| **npm** | `^10.0.0` (Included with Node.js) | Standard package manager |
-| **Operating System** | Windows 10/11, macOS 12+ (Intel/Apple Silicon), Linux (Ubuntu 20.04+, Debian 11+, Fedora 36+) | 64-bit architectures |
-| **Development Tools** | Git, PowerShell (Windows), Bash/Zsh (macOS/Linux) | Standard developer terminal |
+| **Supported OS** | **Windows 10 / 11** (Win32 top-level windows) | **macOS**, **Windows** (UWP apps), **Linux** |
+| **How it Works** | Win32 `SetParent` reparents the application HWND into the Electron window | Hardware-accelerated WebRTC stream via `desktopCapturer` |
+| **Mouse Clicks** | **Yes** (Left, right, middle, drag selection) | No (Visual preview only) |
+| **Keyboard Typing** | **Yes** (Full text input and shortcuts) | No (Click "Focus App" to activate source window) |
+| **Mouse Scrolling** | **Yes** (Native mouse wheel scrolling) | No |
+| **Resource Usage** | Zero additional rendering overhead (native OS paint) | Minimal hardware video decoding (< 1% CPU) |
+| **UI Indicator** | Green badge: `[● Native Interactive]` | Blue badge: `[○ Live Visual Preview]` |
 
-### Platform-Specific Permissions & Capabilities
-- **Windows**: No special OS permissions required for window enumeration or screen capture. Win32 window handles and process trees are queried directly.
-- **macOS**: 
-  - **Screen Recording Permission**: Required for `desktopCapturer` window capture (configured under *System Settings > Privacy & Security > Screen Recording*).
-  - **Accessibility Permission**: Required for window focusing via AppleScript (configured under *System Settings > Privacy & Security > Accessibility*).
-- **Linux**:
-  - **X11**: Supported natively. `wmctrl` or `xdotool` can optionally be installed for extended window focusing.
-  - **Wayland**: Supported via PipeWire and XDG Desktop Portal for screen and window capture.
+> [!IMPORTANT]
+> **macOS Architecture Limitation**: macOS WindowServer security boundaries strictly forbid cross-process window reparenting between independent applications. On macOS, Float-Space displays high-performance live visual capture with an explicit `[Live Visual Preview (macOS)]` badge and provides instant one-click activation to focus the source window for interaction.
 
 ---
 
-## 3. Installation & Setup
+## 4. Prerequisites for Development
 
-Float-Space is completely self-contained. **No external database installation (such as PostgreSQL, MySQL, or MongoDB) or cloud database credentials are ever required.**
+Before developing or packaging Float-Space, ensure your system has:
+
+| Tool | Version | Purpose |
+|---|---|---|
+| **Node.js** | `^20.18.0` or `^22.10.0` (Tested on `v24.21.0`) | JavaScript runtime |
+| **npm** | `^10.0.0` | Package manager |
+| **PowerShell** | 5.1+ (Windows) | Built-in Windows automation for Win32 P/Invoke bridge |
+| **Git** | Any modern version | Source code version control |
+
+No external database servers (PostgreSQL, MySQL, MongoDB), cloud accounts, or C++ build tools are required.
+
+---
+
+## 5. Installation & Setup
 
 ### 1. Clone the Repository
 ```bash
@@ -82,61 +94,170 @@ cd float-space
 npm install
 ```
 
-All required SQLite runtimes and native dependencies are bundled and prepared automatically during installation.
+All SQLite WebAssembly runtimes and Electron dependencies install cleanly without native compilation.
 
 ---
 
-## 4. Development Workflow
+## 6. Running in Development Mode
 
-Float-Space provides standard npm scripts for development, testing, type checking, and production packaging:
+To start the Vite development server with React hot-module replacement and launch the Electron desktop application:
 
-### Start Development Server
-Starts Vite dev server for hot-reloading the React UI and boots the Electron desktop application:
 ```bash
 npm run dev
 ```
 
-### Run TypeScript Checks
-Performs strict static type checking across both Electron main/preload processes and the React renderer:
+The Electron main window will open in its native window frame.
+
+---
+
+## 7. Building the Production Application
+
+To compile the Electron main process, preload scripts, and bundle the React UI into `dist/`:
+
+```bash
+npm run build
+```
+
+*(This executes `npm run build:electron` followed by `npm run build:renderer`)*.
+
+To verify TypeScript types across all processes before packaging:
 ```bash
 npm run typecheck
 ```
 
-### Run Automated Tests
-Executes the Vitest test suite covering display snapping, floating monitor independence, platform adapters, and the 13-table SQLite database architecture:
+To run the automated test suite (display snapping, floating monitor lifecycle, platform adapters, SQLite database):
 ```bash
 npm run test
 ```
 
-### Compile & Build All Components
-Compiles the Electron main process, preload scripts, and bundles the React renderer with Vite:
-```bash
-npm run build
-```
-*(Runs `npm run build:electron` followed by `npm run build:renderer`)*.
+---
 
-### Package & Make Native Installers
-Generates the native installers and executables for your operating system:
+## 8. Desktop Distribution & Packaging
+
+Float-Space generates **real executable installers and application packages**, not shortcuts (`.lnk`) or aliases.
+
+> [!NOTE]
+> All compiled deliverables are output directly to the **`release/`** directory in the project root.
+
+### Generating the Windows Installer (`.exe`)
+Builds a standard Windows NSIS setup wizard (`Float-Space-Setup-1.0.0.exe`):
+
 ```bash
-npm run make
+npm run make:win
 # or
-npm run dist
+npm run dist:win
 ```
 
-### Start Built Application
-Launches the compiled desktop application from `dist/`:
+**Installer Capabilities:**
+- Prompts for custom installation directory (default: `%LOCALAPPDATA%\Programs\float-space`).
+- Creates Start Menu shortcut.
+- Optionally creates a Desktop shortcut.
+- Registers standard Windows Programs and Features uninstaller.
+- Preserves user database and preferences across upgrades and uninstalls.
+
+### Generating the Portable Windows Executable (`.exe`)
+Builds a single-file portable executable (`Float-Space-Portable-1.0.0.exe`):
+
 ```bash
-npm start
+npm run make:win
 ```
+*(Both NSIS setup and Portable executables are generated automatically into `release/`)*.
+
+### Generating the macOS Application Bundle (`.app`) & Disk Image (`.dmg`)
+To package for macOS:
+
+```bash
+npm run make:mac
+# or
+npm run dist:mac
+```
+
+**Deliverables in `release/`:**
+- **`Float-Space-1.0.0.dmg`**: The standard macOS installation disk image with drag-and-drop to the `/Applications` folder.
+- **`Float-Space.app`** (inside `Float-Space-1.0.0-mac.zip`): The signed macOS application bundle.
+
+### Generating Linux Packages (`.AppImage` & `.deb`)
+```bash
+npm run make:linux
+# or
+npm run dist:linux
+```
+
+**Deliverables in `release/`:**
+- `Float-Space-1.0.0.AppImage`: Self-contained executable for any Linux distro.
+- `float-space_1.0.0_amd64.deb`: Debian / Ubuntu installation package.
+
+### Summary of Build & Packaging Commands in `package.json`
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Starts Vite dev server + boots Electron in dev mode |
+| `npm run typecheck` | Strict TypeScript check across main, preload, and renderer |
+| `npm run test` | Executes Vitest unit & integration test suites |
+| `npm run build:electron` | Compiles TypeScript for Electron main & preload |
+| `npm run build:renderer` | Bundles React UI with Vite for production |
+| `npm run build` | Full production compile (`build:electron` + `build:renderer`) |
+| `npm start` | Launches built desktop app from `dist/` |
+| `npm run make` / `npm run dist` | Packages installers for the host platform |
+| `npm run make:win` / `npm run dist:win` | Generates Windows NSIS installer and Portable `.exe` |
+| `npm run make:mac` / `npm run dist:mac` | Generates macOS DMG and `.app` bundle |
+| `npm run make:linux` / `npm run dist:linux`| Generates Linux AppImage and `.deb` package |
 
 ---
 
-## 5. Local Database Architecture
+## 9. How to Install & Launch Generated Applications
 
-Float-Space uses an embedded, local **SQLite 3** database as its primary, mandatory, and persistent source of truth. Every installation automatically initializes and maintains its own database on the local computer.
+End users **never need Node.js, npm, a web browser, or a terminal** to use Float-Space.
 
-### Directory Structure & File Locations
-The database is never stored inside the application installation folder, ensuring that application updates never overwrite or corrupt user data. The directory is resolved at runtime via Electron's `app.getPath('userData')`:
+### On Windows
+1. Open the `release/` folder.
+2. Double-click `Float-Space-Setup-1.0.0.exe`.
+3. Follow the installation wizard.
+4. Launch **Float-Space** from the Start Menu, Desktop, or Search.
+5. *(Optional)* Alternatively, run `Float-Space-Portable-1.0.0.exe` directly from a USB drive or folder without installation.
+
+### On macOS
+1. Open `Float-Space-1.0.0.dmg`.
+2. Drag the **Float-Space.app** icon into the **Applications** shortcut.
+3. Open Launchpad or `/Applications` and click **Float-Space**.
+4. When prompted, grant **Screen Recording** permission (*System Settings > Privacy & Security > Screen Recording*) and **Accessibility** permission for window management.
+
+---
+
+## 10. Code Signing & macOS Notarization
+
+For public distribution outside local development:
+
+### Windows Code Signing
+To sign the Windows installer with a Trusted Authenticode Certificate:
+1. Provide your code signing certificate (`.pfx` file) and password:
+   ```bash
+   export CSC_LINK="/path/to/certificate.pfx"
+   export CSC_KEY_PASSWORD="certificate_password"
+   npm run make:win
+   ```
+2. Electron Builder will automatically sign both the NSIS installer and the main executable.
+
+### macOS Code Signing & Apple Notarization
+1. Configure your Apple Developer credentials in environment variables:
+   ```bash
+   export APPLE_ID="developer@example.com"
+   export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+   export APPLE_TEAM_ID="ABCDE12345"
+   export CSC_LINK="/path/to/developer_id_application.p12"
+   export CSC_KEY_PASSWORD="p12_password"
+   ```
+2. Run `npm run make:mac`.
+3. Electron Builder signs `Float-Space.app`, notarizes it via Apple's `notarytool`, and staples the notarization ticket to `Float-Space-1.0.0.dmg`.
+
+---
+
+## 11. Mandatory Local SQLite Database Architecture
+
+Float-Space uses an embedded, local **SQLite 3** database as its mandatory, permanent data store. No internet connection or cloud service is ever contacted.
+
+### Database Location
+Stored in Electron's `app.getPath('userData')` directory to ensure database files are preserved across application updates and uninstalls:
 
 ```text
 Float-Space/
@@ -150,194 +271,34 @@ Float-Space/
 └── exports/                     # Manual database export destination
 ```
 
-### OS-Specific Database Paths
+### OS File Locations
 
-| Operating System | Default Database Location |
+| Platform | Default Path |
 |---|---|
 | **Windows** | `%APPDATA%\Float-Space\database\floatspace.db`<br>*(e.g., `C:\Users\<User>\AppData\Roaming\Float-Space\database\floatspace.db`)* |
 | **macOS** | `~/Library/Application Support/Float-Space/database/floatspace.db` |
 | **Linux** | `~/.config/Float-Space/database/floatspace.db` |
 
-### Database Schema (13 Core Tables)
-Defined in `electron/database/drizzle-schema.ts` and `electron/database/schema.ts`:
-1. `applications`: Discovered desktop applications, executable paths, icons, and last used timestamps.
-2. `floating_monitors`: Active and configured floating monitor geometries (x, y, width, height), opacities, lock states, pin states, and modes.
-3. `workspaces`: Virtual desktop Spaces (Development, Monitoring, Communication, Personal).
-4. `monitor_groups`: Stage Manager-style groups with cascade deletion.
-5. `workspace_monitors`: Junction table linking monitors to specific workspaces and display IDs.
-6. `layouts`: Window layout configurations (grid, splits, custom).
-7. `layout_monitors`: Geometry and snap presets per layout.
-8. `profiles`: Multi-monitor saved profiles.
-9. `profile_monitors`: Profile window snapshots.
-10. `application_settings`: Persistent user preferences and theme configurations.
-11. `keyboard_shortcuts`: Global system accelerator registrations.
-12. `display_configurations`: Multi-display bounds, scale factors, and work areas.
-13. `session_history`: Session lifecycle logs and state snapshots for session restoration.
-14. `_migrations`: Version tracking ledger for atomic database migrations.
-
-### Backup, Restore & Reset
-Users can manage their local database directly from the application interface:
-- **Automatic Backups**: Created before any schema migration, before database restoration, and before database reset. The 10 most recent backups are retained automatically.
-- **Manual Backups**: Triggered via **Settings > Database & Storage > Create Backup**.
-- **Integrity Check**: Runs `PRAGMA integrity_check` on demand.
-- **Export / Import**: Exports the current `.db` file or imports an external backup with pre-restoration validation.
-- **Database Reset**: Recreates the schema and seeds factory defaults after creating a safety backup.
+### Database Features
+- **Atomic Migrations**: Managed by `MigrationRunner` with automatic version tracking in the `_migrations` table.
+- **Pre-Migration Backups**: Creates a verified backup snapshot before applying schema changes.
+- **Rolling Retention**: Automatically limits automatic backups to the 10 most recent files.
+- **In-App Management**: Access **Settings > Database & Storage** to create instant backups, restore previous snapshots, export the `.db` file, or run `PRAGMA integrity_check`.
 
 ---
 
-## 6. Project Structure
+## 12. Troubleshooting & Platform Limitations
 
-```
-├── electron/
-│   ├── main/
-│   │   ├── index.ts                     # Main process entry point & single-instance lock
-│   │   ├── floating-window-manager.ts   # Multi-window lifecycle manager
-│   │   ├── shortcuts.ts                 # Global keyboard shortcuts
-│   │   └── tray.ts                      # System tray integration
-│   ├── preload/
-│   │   └── index.ts                     # Context-isolated secure IPC bridge
-│   ├── ipc/
-│   │   ├── channels.ts                  # Typed IPC channel definitions
-│   │   └── handlers.ts                  # IPC handlers routing to services & repositories
-│   ├── native/
-│   │   ├── interfaces/                  # Native platform adapter interfaces
-│   │   ├── windows/                     # Win32 application discovery & reparenting logic
-│   │   ├── macos/                       # macOS AppleScript & ScreenCaptureKit adapter
-│   │   └── linux/                       # Linux X11/Wayland .desktop & wmctrl adapter
-│   ├── services/
-│   │   ├── app-discovery.service.ts     # Process enumeration & desktopCapturer integration
-│   │   ├── display.service.ts           # Display bounds, clamping & grid calculation
-│   │   └── logger.service.ts            # Structured diagnostic logger
-│   └── database/
-│       ├── drizzle-schema.ts            # Drizzle ORM typed schema definitions
-│       ├── schema.ts                    # SQLite DDL schema & table creation
-│       ├── migrations.ts                # MigrationRunner & version tracking
-│       ├── db.ts                        # Centralized DatabaseService
-│       └── repositories/                # Repository layer (10 domain repositories)
-│           ├── application.repo.ts
-│           ├── backup.repo.ts
-│           ├── display.repo.ts
-│           ├── floating-monitor.repo.ts
-│           ├── layout.repo.ts
-│           ├── profile.repo.ts
-│           ├── session.repo.ts
-│           ├── settings.repo.ts
-│           ├── shortcut.repo.ts
-│           └── workspace.repo.ts
-├── src/
-│   ├── components/                      # Reusable macOS UI components
-│   │   ├── common/                      # MacTrafficLights, Button, Input, Dialog, Badge
-│   │   └── layout/                      # AppShell, Sidebar, StageManagerSidebar
-│   ├── features/                        # Core application views
-│   │   ├── dashboard/                   # Controller dashboard & quick actions
-│   │   ├── mission-control/             # macOS Mission Control overview grid
-│   │   ├── workspaces/                  # Virtual Spaces management
-│   │   ├── floating-monitors/           # Floating monitor window, toolbar, WebRTC preview
-│   │   ├── applications/                # Discovered apps & running windows catalog
-│   │   ├── layouts/                     # Display snapping & auto-arrangement presets
-│   │   └── settings/                    # Preferences & DatabaseSettings UI
-│   │   └── about/                       # About Float-Space & architecture info
-│   ├── stores/                          # Zustand state stores
-│   ├── services/                        # IPC client wrapper with browser fallback
-│   ├── types/                           # Shared TypeScript domain types
-│   ├── App.tsx                          # Dual-mode root (Dashboard vs Floating Window)
-│   ├── index.css                        # Tailwind CSS styles & macOS glass variables
-│   └── main.tsx                         # React entry point
-├── tests/                               # Vitest automated test suite
-│   ├── application-adapter.test.ts      # Native adapter capabilities tests
-│   ├── database.test.ts                 # 15 SQLite database & repository tests
-│   ├── display-snapping.test.ts         # Display geometry & snapping tests
-│   └── floating-monitor.test.ts         # Window independence & constraint tests
-├── electron-builder.json                # Production packaging configuration
-├── package.json                         # Dependencies & npm scripts
-├── tsconfig.json                        # Renderer TypeScript configuration
-├── tsconfig.electron.json               # Electron TypeScript configuration
-└── vite.config.ts                       # Vite bundler configuration
-```
+### 1. Windows: Application Reparenting Reverts to Visual Preview
+- **Cause**: Sandboxed UWP Windows (e.g., Windows Calculator) and elevated administrator processes cannot be reparented across security boundaries.
+- **Behavior**: Float-Space detects this immediately and automatically falls back to **Live Visual Preview** with an informative banner. Click **Focus App** to interact with the original window.
 
----
+### 2. macOS: Permission Requests
+- **Cause**: macOS sandboxing requires explicit user approval for screen recording and window activation.
+- **Fix**: Open **System Settings > Privacy & Security > Screen Recording**, enable **Float-Space**, and restart the app.
 
-## 7. Production Packaging & Distribution
-
-Float-Space generates native desktop installers using `electron-builder`:
-
-### Build Commands
-
-```bash
-# Package for the current operating system
-npm run make
-
-# Package specifically for Windows (NSIS Installer & Portable)
-npm run make:win
-
-# Package specifically for macOS (DMG & Application Bundle)
-npm run make:mac
-
-# Package specifically for Linux (AppImage & Debian Package)
-npm run make:linux
-```
-
-All distribution installers are generated in the `release/` folder.
-
-### Distribution Deliverables
-- **Windows**:
-  - `Float-Space-Setup-1.0.0.exe` — Windows NSIS installer with customizable installation path, Start Menu shortcuts, desktop shortcut, and clean uninstallation handling.
-  - `Float-Space-Portable-1.0.0.exe` — Self-contained portable executable.
-- **macOS**:
-  - `Float-Space-1.0.0.dmg` — Standard macOS disk image with Applications folder drag-and-drop.
-  - `Float-Space.app` (inside `Float-Space-1.0.0-mac.zip`) — Application bundle.
-- **Linux**:
-  - `Float-Space-1.0.0.AppImage` — Universal Linux binary with execute permissions.
-  - `float-space_1.0.0_amd64.deb` — Debian/Ubuntu package.
-
-### Safe Installation, Upgrades & Uninstallation
-- **Upgrades**: Upgrading Float-Space replaces only application binaries in Program Files/Applications. The user database at `%APPDATA%\Float-Space\database` is preserved.
-- **Uninstallation**: Standard Windows/macOS uninstaller removes application binaries while preserving user database snapshots unless the user explicitly removes user data.
-
----
-
-## 8. Troubleshooting
-
-### 1. Database Initialization or Lock Errors
-- **Symptom**: Application fails to start or reports database lock error.
-- **Solution**: Float-Space stores database files under `Float-Space/database/`. Ensure the user has write permissions to `%APPDATA%` (Windows), `~/Library/Application Support` (macOS), or `~/.config` (Linux).
-
-### 2. macOS Screen Recording Permission Denied
-- **Symptom**: Floating monitors display a black screen or fail to stream application windows.
-- **Solution**: Open **System Settings > Privacy & Security > Screen Recording**, ensure **Float-Space** is enabled, and restart the application.
-
-### 3. Application Windows Not Detected
-- **Symptom**: Running window list appears empty.
-- **Solution**: Minimized windows or background worker processes without top-level window handles are filtered out by design. Ensure the target application window is visible on your desktop and click **Refresh** in the Application Catalog.
-
-### 4. Linux Wayland Screen Capture
-- **Symptom**: Window capture prompt appears repeatedly on Linux.
-- **Solution**: Under Wayland, screen capture permissions are managed by the desktop compositor's XDG Desktop Portal and PipeWire. For unrestricted window enumeration and reparenting, consider switching to an X11 session if required by your window manager.
-
----
-
-## 9. Development Guidelines
-
-### Adding New Database Tables
-1. Define the table schema in `electron/database/drizzle-schema.ts`.
-2. Add the corresponding `CREATE TABLE` DDL in `electron/database/schema.ts`.
-3. Add a new migration entry in `electron/database/migrations.ts`.
-4. Create a repository class in `electron/database/repositories/` and wire it into `DatabaseService` in `electron/database/db.ts`.
-5. Add corresponding integration tests in `tests/database.test.ts`.
-
-### Adding New IPC Channels
-1. Declare the channel name in `electron/ipc/channels.ts`.
-2. Implement the IPC handler in `electron/ipc/handlers.ts`.
-3. Expose the typed API in `electron/preload/index.ts`.
-4. Add client wrappers with fallback handling in `src/services/ipc-client.ts`.
-
-### Testing Verification
-Always run the test suite and type checker prior to packaging:
-```bash
-npm run typecheck
-npm run test
-npm run build
-```
+### 3. Target Application Closes When Closing Float-Space
+- **Guarantee**: Float-Space **never terminates** underlying desktop applications. When closing an embedded floating monitor or quitting Float-Space, all windows are cleanly detached back to the desktop root (`HWND_DESKTOP`) with their original styles and positions restored.
 
 ---
 

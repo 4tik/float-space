@@ -5,6 +5,7 @@ import { FloatingWindowManager } from './floating-window-manager';
 import { registerIpcHandlers } from '../ipc/handlers';
 import { ShortcutManager } from './shortcuts';
 import { createSystemTray } from './tray';
+import { Win32WindowEmbedder } from '../native/windows/win32-embed';
 import { LoggerService } from '../services/logger.service';
 import { IPC_CHANNELS } from '../ipc/channels';
 
@@ -74,6 +75,9 @@ if (!gotTheLock) {
   });
 
   app.on('will-quit', () => {
+    if (process.platform === 'win32') {
+      Win32WindowEmbedder.getInstance().detachAll();
+    }
     ShortcutManager.getInstance().unregisterAll();
     DatabaseService.getInstance().saveToDisk();
   });

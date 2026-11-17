@@ -9,6 +9,8 @@ import {
   Pause,
   Play,
   RotateCcw,
+  MousePointer,
+  Eye,
 } from 'lucide-react';
 import { MacTrafficLights } from '../../components/common/MacTrafficLights';
 import { FloatingWindowConfig } from '../../types/floating-monitor';
@@ -23,6 +25,7 @@ interface FloatingToolbarProps {
   onToggleLock: () => void;
   onSetOpacity: (opacity: number) => void;
   onFocusSource: () => void;
+  onToggleDisplayMode?: () => void;
   isPaused?: boolean;
   onTogglePause?: () => void;
   onReconnect?: () => void;
@@ -37,31 +40,92 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   onToggleLock,
   onSetOpacity,
   onFocusSource,
+  onToggleDisplayMode,
   isPaused,
   onTogglePause,
   onReconnect,
 }) => {
   const [showOpacityPopover, setShowOpacityPopover] = useState(false);
 
+  const isEmbedded = config.displayMode === 'embedded';
+
   return (
-    <div className="h-8 w-full bg-slate-900/90 dark:bg-black/90 text-white flex items-center justify-between px-2.5 border-b border-white/10 select-none app-drag-region">
+    <div className="h-8 w-full bg-slate-900/95 dark:bg-black/95 text-white flex items-center justify-between px-2.5 border-b border-white/10 select-none app-drag-region">
       {/* Left: macOS Traffic Lights and title */}
-      <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex items-center gap-2 min-w-0">
         <MacTrafficLights
           size="sm"
           onClose={onClose}
           onMinimize={onMinimize}
           onMaximize={onMaximize}
         />
-        <span className="text-[11px] font-medium tracking-tight text-slate-200 truncate max-w-[150px]">
+        <span className="text-[11px] font-medium tracking-tight text-slate-200 truncate max-w-[120px]">
           {config.title}
         </span>
+
+        {/* Mode Indicator Badge (Strict distinction between Native Interactive & Live Visual Preview) */}
+        <div className="app-no-drag flex items-center ml-1">
+          {onToggleDisplayMode ? (
+            <button
+              onClick={onToggleDisplayMode}
+              className={cn(
+                'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase transition-colors border',
+                isEmbedded
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                  : 'bg-sky-500/20 text-sky-300 border-sky-500/40 hover:bg-sky-500/30'
+              )}
+              title={
+                isEmbedded
+                  ? 'Mode: Native Interactive (Clicks, typing & scrolling active). Click to switch to Live Capture.'
+                  : 'Mode: Live Visual Preview (Non-interactive). Click to switch to Native Embedding.'
+              }
+            >
+              {isEmbedded ? (
+                <>
+                  <MousePointer size={9} className="text-emerald-400" />
+                  <span>Interactive</span>
+                </>
+              ) : (
+                <>
+                  <Eye size={9} className="text-sky-400" />
+                  <span>Preview</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border',
+                isEmbedded
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+              )}
+              title={
+                isEmbedded
+                  ? 'Native Win32 embedded: Mouse clicks, keyboard typing, and scrolling work directly in this window.'
+                  : 'Live visual capture (non-interactive). Never pretend to be interactive.'
+              }
+            >
+              {isEmbedded ? (
+                <>
+                  <MousePointer size={9} className="text-emerald-400" />
+                  <span>Interactive</span>
+                </>
+              ) : (
+                <>
+                  <Eye size={9} className="text-sky-400" />
+                  <span>Preview</span>
+                </>
+              )}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Right: Actions (all marked app-no-drag so clicks don't drag the window) */}
       <div className="flex items-center gap-1 app-no-drag relative">
-        {/* Play/Pause Live stream */}
-        {onTogglePause && (
+        {/* Play/Pause Live stream (only when in visual preview mode) */}
+        {!isEmbedded && onTogglePause && (
           <button
             onClick={onTogglePause}
             className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
@@ -71,8 +135,8 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           </button>
         )}
 
-        {/* Reconnect */}
-        {onReconnect && (
+        {/* Reconnect (only when in visual preview mode) */}
+        {!isEmbedded && onReconnect && (
           <button
             onClick={onReconnect}
             className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"

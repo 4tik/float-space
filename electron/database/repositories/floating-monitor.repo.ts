@@ -35,8 +35,8 @@ export class FloatingMonitorRepository {
         position_x, position_y, width, height, opacity,
         always_on_top, is_locked, is_active, is_minimized, is_maximized,
         workspace_id, group_id, display_id, compact_toolbar, hide_toolbar,
-        capture_frame_rate, capture_quality, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        capture_frame_rate, capture_quality, target_hwnd, is_interactive, interaction_message, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         display_mode = excluded.display_mode,
@@ -57,6 +57,9 @@ export class FloatingMonitorRepository {
         hide_toolbar = excluded.hide_toolbar,
         capture_frame_rate = excluded.capture_frame_rate,
         capture_quality = excluded.capture_quality,
+        target_hwnd = excluded.target_hwnd,
+        is_interactive = excluded.is_interactive,
+        interaction_message = excluded.interaction_message,
         updated_at = excluded.updated_at`,
       [
         config.id,
@@ -81,6 +84,9 @@ export class FloatingMonitorRepository {
         config.hideToolbar ? 1 : 0,
         config.captureFrameRate || 30,
         config.captureQuality || 'medium',
+        config.targetHwnd || null,
+        config.isInteractive ? 1 : 0,
+        config.interactionMessage || null,
         config.createdAt || now,
         now,
       ]
@@ -143,8 +149,11 @@ export class FloatingMonitorRepository {
       hideToolbar: Boolean(v[19]),
       captureFrameRate: v[20] || 30,
       captureQuality: v[21] || 'medium',
-      createdAt: v[22],
-      updatedAt: v[23],
+      targetHwnd: v[22] || undefined,
+      isInteractive: Boolean(v[23]),
+      interactionMessage: v[24] || undefined,
+      createdAt: v[25] || v[22],
+      updatedAt: v[26] || v[23],
     };
   }
 }

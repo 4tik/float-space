@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { FloatingWindowConfig } from '../types/floating-monitor';
+import { DisplayMode } from '../types/application';
 import { SnapPosition } from '../types/display';
 import { ipcClient } from '../services/ipc-client';
 
@@ -17,6 +18,7 @@ interface MonitorState {
   setOpacity: (id: string, opacity: number) => Promise<void>;
   setAlwaysOnTop: (id: string, alwaysOnTop: boolean) => Promise<void>;
   setLocked: (id: string, isLocked: boolean) => Promise<void>;
+  setDisplayMode: (id: string, mode: DisplayMode) => Promise<void>;
   snapMonitor: (id: string, snap: SnapPosition, displayId?: number) => Promise<void>;
   autoArrange: (workspaceId?: string, displayId?: number) => Promise<void>;
   selectMonitor: (id: string | null) => void;
@@ -119,6 +121,15 @@ export const useMonitorStore = create<MonitorState>((set, get) => ({
     set((state) => ({
       monitors: state.monitors.map((m) => (m.id === id ? { ...m, isLocked } : m)),
     }));
+  },
+
+  setDisplayMode: async (id, mode) => {
+    const updated = await ipcClient.setDisplayMode(id, mode);
+    if (updated) {
+      set((state) => ({
+        monitors: state.monitors.map((m) => (m.id === id ? { ...m, ...updated } : m)),
+      }));
+    }
   },
 
   snapMonitor: async (id, snap, displayId) => {

@@ -13,6 +13,15 @@ export const MIGRATIONS: Migration[] = [
     name: '0001_initial_schema',
     up: INITIAL_SCHEMA_SQL,
   },
+  {
+    version: 2,
+    name: '0002_interactive_embedding',
+    up: `
+      ALTER TABLE floating_monitors ADD COLUMN target_hwnd TEXT;
+      ALTER TABLE floating_monitors ADD COLUMN is_interactive INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE floating_monitors ADD COLUMN interaction_message TEXT;
+    `,
+  },
 ];
 
 export class MigrationRunner {

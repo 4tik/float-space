@@ -40,6 +40,7 @@ export const AppShell: React.FC = () => {
     setOpacity,
     setAlwaysOnTop,
     setLocked,
+    setDisplayMode,
     minimizeMonitor,
     restoreMonitor,
     focusSource,
@@ -59,10 +60,13 @@ export const AppShell: React.FC = () => {
   );
 
   const handleCreateMonitor = async (win: RunningWindowInfo) => {
+    const canEmbed = Boolean(win.handle && win.handle !== '0');
     await createMonitor({
       title: win.title,
       sourceWindowId: win.sourceId,
-      displayMode: 'live-monitor',
+      targetHwnd: win.handle,
+      processId: win.processId,
+      displayMode: canEmbed ? 'embedded' : 'live-monitor',
       alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
       opacity: settings.defaultOpacity ?? 1.0,
       width: settings.defaultWidth || 480,
@@ -77,10 +81,13 @@ export const AppShell: React.FC = () => {
       const raw = e.dataTransfer.getData('application/json');
       if (raw) {
         const item = JSON.parse(raw);
+        const canEmbed = Boolean(item.handle && item.handle !== '0');
         await createMonitor({
           title: item.title,
           sourceWindowId: item.sourceId,
-          displayMode: 'live-monitor',
+          targetHwnd: item.handle,
+          processId: item.processId,
+          displayMode: canEmbed ? 'embedded' : 'live-monitor',
           alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
           opacity: settings.defaultOpacity ?? 1.0,
           width: settings.defaultWidth || 480,
@@ -184,8 +191,17 @@ export const AppShell: React.FC = () => {
                       <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate leading-snug">
                         {win.title}
                       </div>
-                      <div className="text-[10px] text-slate-400 truncate">
-                        {win.appName} {win.processId ? `• PID ${win.processId}` : ''}
+                      <div className="text-[10px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
+                        <span>{win.appName} {win.processId ? `• PID ${win.processId}` : ''}</span>
+                        {win.handle && win.handle !== '0' ? (
+                          <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            Interactive
+                          </span>
+                        ) : (
+                          <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                            Preview
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -267,13 +283,17 @@ export const AppShell: React.FC = () => {
                     className="p-3 rounded-mac-lg border border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-white/5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-white/20 transition-all"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
                           {mon.title}
                         </span>
+                        {/* Mode Badge: Interactive vs Visual Preview */}
+                        <Badge variant={mon.displayMode === 'embedded' ? 'success' : 'secondary'}>
+                          {mon.displayMode === 'embedded' ? 'Native Interactive' : 'Live Visual Preview'}
+                        </Badge>
                         {/* Status: Always on Top / Pin vs Background Mode */}
                         <Badge variant={mon.alwaysOnTop ? 'primary' : 'secondary'}>
-                          {mon.alwaysOnTop ? 'Pinned (Always on Top)' : 'Background Mode'}
+                          {mon.alwaysOnTop ? 'Pinned' : 'Background'}
                         </Badge>
                         {mon.isLocked && <Badge variant="warning">Locked</Badge>}
                         {mon.isMinimized && <Badge variant="secondary">Minimized</Badge>}
@@ -287,6 +307,26 @@ export const AppShell: React.FC = () => {
 
                     {/* Compact Monitor Controls */}
                     <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                      {/* Mode Toggle: Interactive vs Visual Preview */}
+                      <button
+                        onClick={() =>
+                          setDisplayMode(mon.id, mon.displayMode === 'embedded' ? 'live-monitor' : 'embedded')
+                        }
+                        className={cn(
+                          'px-2 py-1 rounded text-xs font-medium border flex items-center gap-1 transition-all',
+                          mon.displayMode === 'embedded'
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                            : 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/25'
+                        )}
+                        title={
+                          mon.displayMode === 'embedded'
+                            ? 'Native Interactive mode active. Click to switch to Live Capture.'
+                            : 'Live Visual Preview active. Click to switch to Native Embedding.'
+                        }
+                      >
+                        {mon.displayMode === 'embedded' ? 'Interactive' : 'Visual Preview'}
+                      </button>
+
                       {/* Pin Toggle: Always on Top vs Background Mode */}
                       <button
                         onClick={() => setAlwaysOnTop(mon.id, !mon.alwaysOnTop)}

@@ -9,6 +9,7 @@ export const IPC_CHANNELS = {
   WINDOW_SET_OPACITY: 'floating-window:set-opacity',
   WINDOW_SET_ALWAYS_ON_TOP: 'floating-window:set-always-on-top',
   WINDOW_SET_LOCKED: 'floating-window:set-locked',
+  WINDOW_SET_DISPLAY_MODE: 'floating-window:set-display-mode',
   WINDOW_GET_ALL: 'floating-window:get-all',
   WINDOW_HIDE_ALL: 'floating-window:hide-all',
   WINDOW_SHOW_ALL: 'floating-window:show-all',

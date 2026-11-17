@@ -1,9 +1,11 @@
 import { BrowserWindow, screen, app } from 'electron';
 import * as path from 'path';
 import { FloatingWindowConfig } from '../../src/types/floating-monitor';
+import { DisplayMode } from '../../src/types/application';
 import { DatabaseService } from '../database/db';
 import { DisplayService } from '../services/display.service';
 import { LoggerService } from '../services/logger.service';
+import { Win32WindowEmbedder } from '../native/windows/win32-embed';
 import { IPC_CHANNELS } from '../ipc/channels';
 
 export class FloatingWindowManager {
@@ -50,12 +52,22 @@ export class FloatingWindowManager {
     const id = inputConfig.id || `monitor-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
 
+    const targetHwnd =
+      inputConfig.targetHwnd ||
+      (inputConfig.sourceWindowId?.startsWith('window:')
+        ? inputConfig.sourceWindowId.split(':')[1]
+        : undefined);
+
     const config: FloatingWindowConfig = {
       id,
       applicationId: inputConfig.applicationId,
       sourceWindowId: inputConfig.sourceWindowId,
+      targetHwnd,
+      processId: inputConfig.processId,
       title: inputConfig.title || 'Floating Monitor',
       displayMode: inputConfig.displayMode || 'live-monitor',
+      isInteractive: false,
+      interactionMessage: undefined,
       positionX: inputConfig.positionX ?? 100 + (this.windows.size * 30),
       positionY: inputConfig.positionY ?? 100 + (this.windows.size * 30),
       width: Math.max(inputConfig.width || 480, 240),
@@ -123,11 +135,56 @@ export class FloatingWindowManager {
       });
     }
 
+    // Perform native window embedding if requested and supported
+    if (config.targetHwnd && config.displayMode === 'embedded') {
+      if (process.platform === 'win32') {
+        try {
+          const rawBuffer = win.getNativeWindowHandle();
+          const containerHwnd = rawBuffer.readBigUInt64LE(0).toString();
+          const embedRes = await Win32WindowEmbedder.getInstance().embed(config.targetHwnd, containerHwnd, {
+            width: config.width,
+            height: config.height,
+            titlebarHeight: 32,
+          });
+          if (embedRes.embedded) {
+            config.isInteractive = true;
+            config.interactionMessage = 'Native Win32 embedded: Mouse clicks, typing, and scrolling active inside floating monitor';
+          } else {
+            config.displayMode = 'live-monitor';
+            config.isInteractive = false;
+            config.interactionMessage = embedRes.message || 'Window reparenting unsupported. Fallback to live visual preview.';
+          }
+        } catch (err: any) {
+          config.displayMode = 'live-monitor';
+          config.isInteractive = false;
+          config.interactionMessage = 'Failed to reparent window: ' + err.message;
+        }
+      } else {
+        // macOS / Linux
+        config.displayMode = 'live-monitor';
+        config.isInteractive = false;
+        config.interactionMessage =
+          process.platform === 'darwin'
+            ? 'macOS WindowServer prevents cross-process window reparenting. Running in live visual capture fallback.'
+            : 'Live visual preview fallback active.';
+      }
+    } else {
+      config.isInteractive = false;
+      config.interactionMessage = 'Live visual preview active. Click Focus App to control the source window.';
+    }
+
     // Event listeners
     win.on('moved', () => {
       const bounds = win.getBounds();
       config.positionX = bounds.x;
       config.positionY = bounds.y;
+      if (config.displayMode === 'embedded' && config.targetHwnd && process.platform === 'win32') {
+        Win32WindowEmbedder.getInstance().syncBounds(config.targetHwnd, {
+          width: bounds.width,
+          height: bounds.height,
+          titlebarHeight: 32,
+        });
+      }
       this.updateConfig(config);
       this.broadcastStateChange(config);
     });
@@ -136,6 +193,13 @@ export class FloatingWindowManager {
       const bounds = win.getBounds();
       config.width = bounds.width;
       config.height = bounds.height;
+      if (config.displayMode === 'embedded' && config.targetHwnd && process.platform === 'win32') {
+        Win32WindowEmbedder.getInstance().syncBounds(config.targetHwnd, {
+          width: bounds.width,
+          height: bounds.height,
+          titlebarHeight: 32,
+        });
+      }
       this.updateConfig(config);
       this.broadcastStateChange(config);
     });
@@ -153,6 +217,9 @@ export class FloatingWindowManager {
     });
 
     win.on('closed', () => {
+      if (config.targetHwnd && process.platform === 'win32') {
+        Win32WindowEmbedder.getInstance().detach(config.targetHwnd);
+      }
       this.windows.delete(id);
       this.configs.delete(id);
       if (persist) {
@@ -219,6 +286,67 @@ export class FloatingWindowManager {
       this.updateConfig(config);
       this.broadcastStateChange(config);
     }
+  }
+
+  public async setDisplayMode(id: string, mode: DisplayMode): Promise<FloatingWindowConfig | undefined> {
+    const win = this.windows.get(id);
+    const config = this.configs.get(id);
+    if (!win || !config) return undefined;
+
+    if (mode === 'embedded') {
+      if (process.platform === 'win32' && config.targetHwnd) {
+        try {
+          const rawBuffer = win.getNativeWindowHandle();
+          const containerHwnd = rawBuffer.readBigUInt64LE(0).toString();
+          const embedRes = await Win32WindowEmbedder.getInstance().embed(config.targetHwnd, containerHwnd, {
+            width: config.width,
+            height: config.height,
+            titlebarHeight: 32,
+          });
+          if (embedRes.embedded) {
+            config.displayMode = 'embedded';
+            config.isInteractive = true;
+            config.interactionMessage =
+              'Native Win32 embedded: Mouse clicks, typing, and scrolling active inside floating monitor';
+          } else {
+            config.displayMode = 'live-monitor';
+            config.isInteractive = false;
+            config.interactionMessage = embedRes.message;
+          }
+        } catch (err: any) {
+          config.displayMode = 'live-monitor';
+          config.isInteractive = false;
+          config.interactionMessage = 'Embedding error: ' + err.message;
+        }
+      } else {
+        config.displayMode = 'live-monitor';
+        config.isInteractive = false;
+        config.interactionMessage =
+          process.platform === 'darwin'
+            ? 'macOS WindowServer prevents cross-process window reparenting. High-performance visual capture fallback.'
+            : 'Live visual capture fallback.';
+      }
+    } else {
+      // Switching to live-monitor
+      if (process.platform === 'win32' && config.targetHwnd) {
+        await Win32WindowEmbedder.getInstance().detach(config.targetHwnd);
+      }
+      config.displayMode = 'live-monitor';
+      config.isInteractive = false;
+      config.interactionMessage = 'Live visual capture active. Click Focus App to control the source window.';
+    }
+
+    this.updateConfig(config);
+    this.broadcastStateChange(config);
+    return config;
+  }
+
+  public async detach(id: string): Promise<boolean> {
+    const config = this.configs.get(id);
+    if (config?.targetHwnd && process.platform === 'win32') {
+      await Win32WindowEmbedder.getInstance().detach(config.targetHwnd);
+    }
+    return true;
   }
 
   public setBounds(id: string, bounds: { x?: number; y?: number; width?: number; height?: number }): void {

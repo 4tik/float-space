@@ -4,6 +4,10 @@ export interface FloatingWindowConfig {
   id: string;
   applicationId?: string;
   sourceWindowId?: string; // Target running window ID for capture
+  targetHwnd?: string; // Win32 Native HWND for interactive embedding
+  processId?: number; // Target process ID
+  isInteractive?: boolean; // Whether native interactive embedding is active
+  interactionMessage?: string; // OS/Platform status explanation
   title: string;
   displayMode: DisplayMode;
   positionX: number;
