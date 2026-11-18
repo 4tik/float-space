@@ -110,7 +110,7 @@ export const AppShell: React.FC = () => {
       let hostname = finalUrl;
       try {
         hostname = new URL(finalUrl).hostname;
-      } catch {}
+      } catch { }
 
       await createMonitor({
         title: hostname,
@@ -136,10 +136,10 @@ export const AppShell: React.FC = () => {
   const pinnedCount = monitors.filter((m) => m.alwaysOnTop).length;
 
   return (
-    <div className="macos-wallpaper text-[#1D1D1F] h-screen w-screen p-2.5 sm:p-3.5 flex flex-col select-none overflow-hidden">
+    <div className="macos-wallpaper text-[#1D1D1F] h-screen w-screen flex flex-col select-none overflow-hidden">
       {/* Classic macOS Sonoma / Sequoia Window Frame */}
       <div className="flex-1 flex flex-col bg-[#FAF9F6] rounded-[13px] border border-black/[0.12] shadow-[0_24px_60px_-12px_rgba(28,25,23,0.22),0_0_1px_1px_rgba(255,255,255,0.65)_inset] overflow-hidden transition-all duration-300">
-        
+
         {/* Translucent macOS Header / Titlebar */}
         <header className="sticky top-0 z-30 h-12 bg-[#F5F4F0]/85 backdrop-blur-xl border-b border-black/[0.08] px-3.5 sm:px-4 flex items-center justify-between shrink-0 relative app-drag-region">
           {/* Left: Traffic Lights */}
@@ -190,12 +190,12 @@ export const AppShell: React.FC = () => {
 
         {/* Main Split View: Left Sidebar + Right Workspace Canvas */}
         <div className="flex-1 flex overflow-hidden relative">
-          
+
           {/* ===================================================== */}
           {/* LEFT MACOS VIBRANCY SIDEBAR: RUNNING APPLICATIONS     */}
           {/* ===================================================== */}
           <aside className="w-[300px] xl:w-[325px] bg-[#F5F4F0]/90 backdrop-blur-2xl border-r border-black/[0.08] flex flex-col shrink-0 app-no-drag">
-            
+
             {/* Sidebar Section Header & Search */}
             <div className="p-3 pb-2.5 space-y-2.5 shrink-0">
               <div className="flex items-center justify-between px-1">
@@ -403,8 +403,8 @@ export const AppShell: React.FC = () => {
           {/* RIGHT MAIN WORKSPACE (WARM SAND / OFF-WHITE CANVAS)   */}
           {/* ===================================================== */}
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#FAF9F6]">
-            <div className="max-w-4xl mx-auto space-y-3.5">
-              
+            <div className="max-w-6xl mx-auto space-y-3.5">
+
               {/* Compact Summary Header Bar */}
               <div className="bg-white/90 border border-black/[0.07] rounded-[10px] px-4 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2.5">
@@ -446,7 +446,7 @@ export const AppShell: React.FC = () => {
                       className="bg-white border border-black/[0.08] rounded-[10px] p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-black/[0.14] transition-all"
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-                        
+
                         {/* Left: Compact Live Preview Thumbnail + Title + Resolution + Opacity Slider */}
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-14 h-10 rounded-[7px] bg-[#1D1D1F] border border-black/15 flex flex-col items-center justify-center shrink-0 relative overflow-hidden shadow-inner">
@@ -495,7 +495,7 @@ export const AppShell: React.FC = () => {
 
                         {/* Right: The 3 Essential Actions (Pin, Min, Close) */}
                         <div className="flex items-center justify-end gap-1.5 shrink-0 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-black/[0.06]">
-                          
+
                           {/* 1. Pin Toggle (Warm Amber / Graphite Active State) */}
                           <button
                             onClick={() => setAlwaysOnTop(mon.id, !mon.alwaysOnTop)}

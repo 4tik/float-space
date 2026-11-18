@@ -224,6 +224,44 @@ function Dispatch-Action($params) {
     return $out
   }
 
+  if ($action -eq "get_process") {
+    if ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr)) {
+      [uint32]$procId = 0
+      [Win32Native]::GetWindowThreadProcessId($targetPtr, [ref]$procId) | Out-Null
+      $procName = ""
+      $procPath = ""
+      if ($procId -gt 0) {
+        try {
+          $p = [System.Diagnostics.Process]::GetProcessById([int]$procId)
+          $procName = $p.ProcessName
+          try { $procPath = $p.MainModule.FileName } catch {}
+        } catch {}
+      }
+      $out["success"] = $true
+      $out["processId"] = [int]$procId
+      $out["processName"] = $procName
+      $out["executablePath"] = $procPath
+    }
+    return $out
+  }
+
+  if ($action -eq "validate") {
+    $exists = ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr))
+    $procMatch = $true
+    [uint32]$actualPid = 0
+    if ($exists) {
+      [Win32Native]::GetWindowThreadProcessId($targetPtr, [ref]$actualPid) | Out-Null
+      if ($params.expectedPid -and [int]$params.expectedPid -gt 0) {
+        $procMatch = ([int]$actualPid -eq [int]$params.expectedPid)
+      }
+    }
+    $out["success"] = ($exists -and $procMatch)
+    $out["exists"] = $exists
+    $out["pidMatch"] = $procMatch
+    $out["actualPid"] = [int]$actualPid
+    return $out
+  }
+
   if ($action -eq "input") {
     if ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr)) {
       $rect = New-Object Win32Native+RECT

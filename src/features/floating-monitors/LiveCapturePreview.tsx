@@ -152,7 +152,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         }
 
         if (!stream) {
-          throw new Error('Could not start video source');
+          throw new Error('Target application window could not be attached. Ensure the application is open and restored.');
         }
 
         // Safety check: verify stream is NOT an entire desktop screen
@@ -469,7 +469,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
             >
               <RotateCcw size={12} /> Retry
             </button>
-          </div>
+          </div>6
         </div>
       )}
 

@@ -3,6 +3,7 @@ import { IApplicationAdapter, PlatformCapabilities } from '../native/interfaces/
 import { WindowsApplicationAdapter } from '../native/windows/windows-adapter';
 import { MacOSApplicationAdapter } from '../native/macos/macos-adapter';
 import { LinuxApplicationAdapter } from '../native/linux/linux-adapter';
+import { Win32WindowEmbedder } from '../native/windows/win32-embed';
 import { InstalledApplication, RunningWindowInfo } from '../../src/types/application';
 import { LoggerService } from './logger.service';
 
@@ -83,9 +84,6 @@ export class AppDiscoveryService {
         this.logger.warn('AppDiscoveryService', 'desktopCapturer not available or failed', e);
       }
 
-      // 3. Fetch native OS process-level running window info
-      const adapterWindows = await this.adapter.getRunningWindows();
-
       // Map indexed by unique HWND (or sourceId if HWND is unavailable)
       const resultMap = new Map<string, RunningWindowInfo>();
 
@@ -100,7 +98,7 @@ export class AppDiscoveryService {
         'task host window',
       ]);
 
-      // Integrate desktopCapturer sources
+      // Integrate desktopCapturer sources with exact native process verification
       for (const source of capturerSources) {
         const title = source.name ? source.name.trim() : '';
         if (!title) continue;
@@ -116,10 +114,29 @@ export class AppDiscoveryService {
         if (hwnd && floatSpaceHwnds.has(hwnd)) continue;
         if (lowerTitle === 'float-space' || lowerTitle.startsWith('float-space') || lowerTitle.includes('floating monitor')) continue;
 
-        // Clean app name extraction from title
         let appName = 'Application';
         if (title.includes(' - ')) {
           appName = title.split(' - ').pop()?.trim() || 'Application';
+        }
+
+        let processId = 0;
+        let executablePath: string | undefined;
+
+        // On Windows, query exact PID and process name using native Win32 GetWindowThreadProcessId
+        if (process.platform === 'win32' && hwnd) {
+          try {
+            const pInfo = await Win32WindowEmbedder.getInstance().getWindowProcessInfo(hwnd);
+            if (pInfo.success && pInfo.processId) {
+              if (pInfo.processId === currentPid) continue;
+              processId = pInfo.processId;
+              if (pInfo.processName) {
+                appName = pInfo.processName;
+              }
+              if (pInfo.executablePath) {
+                executablePath = pInfo.executablePath;
+              }
+            }
+          } catch {}
         }
 
         const iconUrl = source.appIcon ? source.appIcon.toDataURL() : undefined;
@@ -131,7 +148,8 @@ export class AppDiscoveryService {
           sourceId: source.id,
           title,
           appName,
-          processId: 0,
+          processId,
+          executablePath,
           handle: hwnd || undefined,
           iconDataUrl: iconUrl,
           thumbnailDataUrl: thumbUrl,
@@ -139,51 +157,53 @@ export class AppDiscoveryService {
         });
       }
 
-      // Merge native platform adapter windows (adding exact PID, executable path, and handles)
+      // 3. Fetch native OS process-level running window info (for fallback/enrichment)
+      const adapterWindows = await this.adapter.getRunningWindows();
+
+      // Merge native platform adapter windows
       for (const win of adapterWindows) {
-        // Exclude Float-Space process and system windows
         if (win.processId === currentPid) continue;
         const lowerTitle = win.title.toLowerCase().trim();
         if (lowerTitle === 'float-space' || lowerTitle.startsWith('float-space') || lowerTitle.includes('floating monitor')) continue;
         if (systemTitles.has(lowerTitle)) continue;
 
-        const key = win.handle || win.sourceId;
-
-        if (resultMap.has(key)) {
-          // Exact HWND match: enrich capturer source with exact PID & executable path
-          const existing = resultMap.get(key)!;
-          existing.processId = win.processId || existing.processId;
-          existing.executablePath = win.executablePath || existing.executablePath;
-          existing.handle = win.handle || existing.handle;
-          if (win.appName && win.appName !== 'Application') {
-            existing.appName = win.appName;
-          }
+        // Match against existing capturable windows by HWND or by Process ID
+        let matchedKey: string | null = null;
+        if (win.handle && resultMap.has(win.handle)) {
+          matchedKey = win.handle;
+        } else if (resultMap.has(win.sourceId)) {
+          matchedKey = win.sourceId;
         } else {
-          // Check for matching title in case HWND string format differed
-          let matchedKey: string | null = null;
           for (const [k, existing] of resultMap.entries()) {
-            if (
+            const pidMatches = win.processId && existing.processId && win.processId === existing.processId;
+            const titleMatches =
               existing.title.toLowerCase() === lowerTitle ||
               (existing.title.length > 5 && lowerTitle.includes(existing.title.toLowerCase())) ||
-              (lowerTitle.length > 5 && existing.title.toLowerCase().includes(lowerTitle))
-            ) {
+              (lowerTitle.length > 5 && existing.title.toLowerCase().includes(lowerTitle));
+
+            if (pidMatches || titleMatches) {
               matchedKey = k;
               break;
             }
           }
+        }
 
-          if (matchedKey) {
-            const existing = resultMap.get(matchedKey)!;
-            existing.processId = win.processId || existing.processId;
-            existing.executablePath = win.executablePath || existing.executablePath;
-            existing.handle = win.handle || existing.handle;
-            if (win.appName && win.appName !== 'Application') {
-              existing.appName = win.appName;
-            }
-          } else {
-            // New window not captured by desktopCapturer
-            resultMap.set(key, win);
+        if (matchedKey) {
+          // Enrich existing capturable window metadata without overwriting valid sourceId or HWND
+          const existing = resultMap.get(matchedKey)!;
+          existing.processId = existing.processId || win.processId;
+          existing.executablePath = existing.executablePath || win.executablePath;
+          if (win.appName && win.appName !== 'Application') {
+            existing.appName = win.appName;
           }
+        } else {
+          // Truly unique window not captured by desktopCapturer (e.g. minimized)
+          // Validate native handle before adding
+          if (process.platform === 'win32' && win.handle) {
+            const valid = await Win32WindowEmbedder.getInstance().validateWindow(win.handle, win.processId);
+            if (!valid.valid) continue;
+          }
+          resultMap.set(win.handle || win.sourceId, win);
         }
       }
 

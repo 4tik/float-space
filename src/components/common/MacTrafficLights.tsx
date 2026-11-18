@@ -17,7 +17,7 @@ export const MacTrafficLights: React.FC<MacTrafficLightsProps> = ({
   size = 'md',
 }) => {
   const isSm = size === 'sm';
-  const dim = isSm ? 'w-2.5 h-2.5' : 'w-3 h-3';
+  const dim = isSm ? 'w-2.5 h-2.5' : 'w-4 h-4';
   const glyphDim = isSm ? 'w-1.5 h-1.5' : 'w-2 h-2';
 
   return (

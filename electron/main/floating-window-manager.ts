@@ -6,6 +6,7 @@ import { DatabaseService } from '../database/db';
 import { DisplayService } from '../services/display.service';
 import { LoggerService } from '../services/logger.service';
 import { Win32WindowEmbedder } from '../native/windows/win32-embed';
+import { AppDiscoveryService } from '../services/app-discovery.service';
 import { IPC_CHANNELS } from '../ipc/channels';
 
 export class FloatingWindowManager {
@@ -120,10 +121,27 @@ export class FloatingWindowManager {
     config.width = clamped.width;
     config.height = clamped.height;
 
-    // Ensure target application window is restored if minimized so DWM renders its frames
+    // Validate and synchronize target application window handle before attaching
     if (config.targetHwnd && process.platform === 'win32') {
       try {
-        await Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd);
+        const validation = await Win32WindowEmbedder.getInstance().validateWindow(config.targetHwnd, config.processId);
+        if (!validation.valid) {
+          // HWND was stale or anchor handle; re-resolve the exact running window for this application
+          const running = await AppDiscoveryService.getInstance().getRunningWindows();
+          const match = running.find((w: any) =>
+            (config.processId && w.processId === config.processId) ||
+            (w.handle === config.targetHwnd) ||
+            (config.title && w.title.toLowerCase().includes(config.title.toLowerCase().slice(0, 15)))
+          );
+          if (match && match.handle) {
+            config.targetHwnd = match.handle;
+            config.sourceWindowId = match.sourceId;
+            config.processId = match.processId || config.processId;
+          }
+        }
+        if (config.targetHwnd) {
+          await Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd);
+        }
       } catch {}
     }
 

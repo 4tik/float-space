@@ -322,6 +322,50 @@ export class Win32WindowEmbedder {
     return !!res?.success;
   }
 
+  public async getWindowProcessInfo(
+    targetHwnd: string
+  ): Promise<{ success: boolean; processId?: number; processName?: string; executablePath?: string }> {
+    if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') {
+      return { success: false };
+    }
+
+    const res = await this.executeCommand({
+      action: 'get_process',
+      targetHwnd,
+    });
+
+    return res || { success: false };
+  }
+
+  public async validateWindow(
+    targetHwnd: string,
+    expectedPid?: number
+  ): Promise<{ valid: boolean; reason?: string; actualPid?: number }> {
+    if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') {
+      return { valid: false, reason: 'Invalid native window handle' };
+    }
+
+    const res = await this.executeCommand({
+      action: 'validate',
+      targetHwnd,
+      expectedPid,
+    });
+
+    if (!res || !res.exists) {
+      return { valid: false, reason: 'Target native window no longer exists or was closed' };
+    }
+
+    if (expectedPid && expectedPid > 0 && !res.pidMatch) {
+      return {
+        valid: false,
+        reason: `Window PID mismatch (expected ${expectedPid}, but window belongs to ${res.actualPid})`,
+        actualPid: res.actualPid,
+      };
+    }
+
+    return { valid: true, actualPid: res.actualPid };
+  }
+
   public async forwardInput(
     targetHwnd: string,
     event: {

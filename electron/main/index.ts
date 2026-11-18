@@ -88,30 +88,66 @@ if (!gotTheLock) {
         const sources = await desktopCapturer.getSources({ types: ['window'], fetchWindowIcons: true });
 
         let chosen: Electron.DesktopCapturerSource | undefined;
+        // 1. Match by exact sourceId
         if (targetInfo?.sourceId) {
           chosen = sources.find((s) => s.id === targetInfo!.sourceId);
         }
+        // 2. Match by exact HWND
         if (!chosen && targetInfo?.targetHwnd) {
           chosen = sources.find((s) => s.id.split(':')[1] === targetInfo!.targetHwnd);
         }
-        if (!chosen && targetInfo?.title) {
-          const lower = targetInfo.title.toLowerCase().trim();
-          chosen = sources.find((s) => {
-            const sName = s.name.toLowerCase().trim();
-            return sName === lower || sName.includes(lower) || lower.includes(sName);
-          });
+        // 3. Match by process ID & application ownership
+        if (!chosen && (targetInfo?.targetHwnd || targetInfo?.title) && process.platform === 'win32') {
+          for (const s of sources) {
+            const sHwnd = s.id.split(':')[1];
+            if (sHwnd) {
+              const pInfo = await Win32WindowEmbedder.getInstance().getWindowProcessInfo(sHwnd);
+              if (pInfo.success && pInfo.processName) {
+                const targetTitleLower = (targetInfo.title || '').toLowerCase();
+                const pNameLower = pInfo.processName.toLowerCase();
+                // If process is PowerPoint, Notepad, Chrome, etc. matching title/process
+                if (
+                  targetTitleLower.includes(pNameLower) ||
+                  (pNameLower.includes('powerpnt') && (targetTitleLower.includes('powerpoint') || targetTitleLower.includes('.ppt')))
+                ) {
+                  chosen = s;
+                  break;
+                }
+              }
+            }
+          }
         }
-        // Strictly verify that chosen is a WINDOW source, NEVER screen
+        // 4. Match by tokenized title similarity
+        if (!chosen && targetInfo?.title) {
+          const cleanTokens = targetInfo.title
+            .toLowerCase()
+            .replace(/[_\-\.\[\]\(\)\+]/g, ' ')
+            .split(/\s+/)
+            .filter((t) => t.length > 2 && t !== 'last' && t !== 'saved' && t !== 'application');
+
+          let bestScore = 0;
+          let bestSource: Electron.DesktopCapturerSource | undefined;
+
+          for (const s of sources) {
+            const sLower = s.name.toLowerCase();
+            let score = 0;
+            for (const token of cleanTokens) {
+              if (sLower.includes(token)) score++;
+            }
+            if (score > bestScore && score >= 1) {
+              bestScore = score;
+              bestSource = s;
+            }
+          }
+          if (bestSource) chosen = bestSource;
+        }
+
+        // Strictly verify that chosen is the validated application window
         if (chosen && chosen.id.startsWith('window:')) {
           callback({ video: chosen });
         } else {
-          // If no specific match, find the first available window (never a screen)
-          const firstWindow = sources.find((s) => s.id.startsWith('window:'));
-          if (firstWindow) {
-            callback({ video: firstWindow });
-          } else {
-            callback({});
-          }
+          // Validation failed or window unavailable: DO NOT return an unrelated window!
+          callback({});
         }
       } catch (err) {
         callback({});
