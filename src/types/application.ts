@@ -1,6 +1,6 @@
 export type PlatformType = 'win32' | 'darwin' | 'linux';
 
-export type DisplayMode = 'live-monitor' | 'embedded' | 'launcher';
+export type DisplayMode = 'live-monitor' | 'embedded' | 'launcher' | 'web';
 
 export interface InstalledApplication {
   id: string;

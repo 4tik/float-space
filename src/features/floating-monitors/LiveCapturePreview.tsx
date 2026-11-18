@@ -156,7 +156,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
               ipcClient.focusWindow(forwardTarget).catch(() => { });
             }
             if (forwardTarget) {
-              ipcClient.focusWindow(forwardTarget).catch(() => {});
+              ipcClient.focusWindow(forwardTarget).catch(() => { });
             }
             setTimeout(() => {
               if (!isCancelled) startCapture();

@@ -22,6 +22,13 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE floating_monitors ADD COLUMN interaction_message TEXT;
     `,
   },
+  {
+    version: 3,
+    name: '0003_web_monitoring',
+    up: `
+      ALTER TABLE floating_monitors ADD COLUMN url TEXT;
+    `,
+  },
 ];
 
 export class MigrationRunner {

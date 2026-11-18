@@ -11,6 +11,7 @@ import {
   RotateCcw,
   MousePointer,
   Eye,
+  Globe,
 } from 'lucide-react';
 import { MacTrafficLights } from '../../components/common/MacTrafficLights';
 import { FloatingWindowConfig } from '../../types/floating-monitor';
@@ -48,6 +49,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   const [showOpacityPopover, setShowOpacityPopover] = useState(false);
 
   const isEmbedded = config.displayMode === 'embedded';
+  const isWeb = config.displayMode === 'web';
 
   return (
     <div className="h-8 w-full bg-white/95 text-slate-800 flex items-center justify-between px-2.5 border-b border-slate-200/90 select-none app-drag-region backdrop-blur-md shadow-sm">
@@ -63,9 +65,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           {config.title}
         </span>
 
-        {/* Mode Indicator Badge (Strict distinction between Native Interactive & Live Visual Preview) */}
+        {/* Mode Indicator Badge (Strict distinction between Native Interactive & Live Visual Preview & Web) */}
         <div className="app-no-drag flex items-center ml-1">
-          {onToggleDisplayMode ? (
+          {isWeb ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-indigo-50 text-indigo-700 border-indigo-300">
+              <Globe size={9} className="text-indigo-600" />
+              <span>Web</span>
+            </span>
+          ) : onToggleDisplayMode ? (
             <button
               onClick={onToggleDisplayMode}
               className={cn(

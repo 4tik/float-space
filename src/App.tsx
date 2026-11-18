@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { AppShell } from './components/layout/AppShell';
 import { FloatingMonitorWindow } from './features/floating-monitors/FloatingMonitorWindow';
 import { useMonitorStore } from './stores/monitor-store';
-import { useWorkspaceStore } from './stores/workspace-store';
 import { useApplicationStore } from './stores/application-store';
 import { useDisplayStore } from './stores/display-store';
 import { useSettingsStore } from './stores/settings-store';
@@ -13,7 +12,6 @@ export const App: React.FC = () => {
 
   const loadMonitors = useMonitorStore((s) => s.loadMonitors);
   const updateMonitor = useMonitorStore((s) => s.updateMonitor);
-  const loadWorkspaces = useWorkspaceStore((s) => s.loadWorkspacesAndGroups);
   const loadApps = useApplicationStore((s) => s.loadApplications);
   const loadDisplays = useDisplayStore((s) => s.loadDisplays);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
@@ -30,10 +28,9 @@ export const App: React.FC = () => {
       return;
     }
 
-    // Otherwise initialize full dashboard controller
+    // Otherwise initialize main window controller
     loadSettings();
     loadMonitors();
-    loadWorkspaces();
     loadApps();
     loadDisplays();
 

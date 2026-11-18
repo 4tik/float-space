@@ -84,10 +84,11 @@ export class FloatingWindowManager {
       sourceWindowId: inputConfig.sourceWindowId,
       targetHwnd,
       processId: inputConfig.processId,
-      title: inputConfig.title || 'Floating Monitor',
-      displayMode: inputConfig.displayMode || 'live-monitor',
-      isInteractive: false,
-      interactionMessage: undefined,
+      url: inputConfig.url,
+      title: inputConfig.title || (inputConfig.url ? new URL(inputConfig.url).hostname : 'Floating Monitor'),
+      displayMode: inputConfig.displayMode || (inputConfig.url ? 'web' : 'live-monitor'),
+      isInteractive: inputConfig.displayMode === 'web' || inputConfig.displayMode === 'embedded',
+      interactionMessage: inputConfig.displayMode === 'web' ? 'Web Monitor Active' : undefined,
       positionX: inputConfig.positionX ?? 100 + (this.windows.size * 30),
       positionY: inputConfig.positionY ?? 100 + (this.windows.size * 30),
       width: Math.max(inputConfig.width || 480, 240),
@@ -148,6 +149,7 @@ export class FloatingWindowManager {
         nodeIntegration: false,
         sandbox: false,
         backgroundThrottling: false,
+        webviewTag: true,
       },
     });
 

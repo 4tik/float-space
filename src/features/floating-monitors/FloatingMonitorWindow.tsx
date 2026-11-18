@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FloatingToolbar } from './FloatingToolbar';
 import { LiveCapturePreview } from './LiveCapturePreview';
+import { FloatingWebMonitor } from './FloatingWebMonitor';
 import { FloatingWindowConfig } from '../../types/floating-monitor';
 import { ipcClient } from '../../services/ipc-client';
 import { MousePointer, ExternalLink, Info } from 'lucide-react';
@@ -83,7 +84,10 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
 
       {/* Main Content Area */}
       <div className="flex-1 relative overflow-hidden flex flex-col">
-        {isEmbedded ? (
+        {config.displayMode === 'web' ? (
+          // Secure Web Monitor with navigation controls
+          <FloatingWebMonitor url={config.url} title={config.title} />
+        ) : isEmbedded ? (
           // Native Interactive Embedding Container (Transparent so OS renders the child window)
           <div className="flex-1 w-full h-full relative bg-transparent flex flex-col items-center justify-center text-center p-4">
             <div className="absolute inset-0 pointer-events-none flex flex-col justify-end p-2 z-10 opacity-70 hover:opacity-100 transition-opacity">

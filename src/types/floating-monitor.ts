@@ -6,6 +6,7 @@ export interface FloatingWindowConfig {
   sourceWindowId?: string; // Target running window ID for capture
   targetHwnd?: string; // Win32 Native HWND for interactive embedding
   processId?: number; // Target process ID
+  url?: string; // Web monitor URL (when displayMode === 'web')
   isInteractive?: boolean; // Whether native interactive embedding is active
   interactionMessage?: string; // OS/Platform status explanation
   title: string;

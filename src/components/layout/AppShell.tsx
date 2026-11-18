@@ -5,23 +5,17 @@ import {
   Search,
   RefreshCw,
   Plus,
-  Sliders,
   Pin,
-  Lock,
-  Unlock,
   ExternalLink,
   X,
   Settings as SettingsIcon,
-  HelpCircle,
-  Eye,
   Layers,
-  ChevronRight,
-  Tv,
+  Globe,
+  Minus,
+  Square,
+  ArrowRight,
+  Sparkles,
 } from 'lucide-react';
-import { MacTrafficLights } from '../common/MacTrafficLights';
-import { Button } from '../common/Button';
-import { Input } from '../common/Input';
-import { Badge } from '../common/Badge';
 import { Dialog } from '../common/Dialog';
 import { DatabaseSettings } from '../../features/settings/DatabaseSettings';
 import { useApplicationStore } from '../../stores/application-store';
@@ -30,6 +24,15 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { ipcClient } from '../../services/ipc-client';
 import { cn } from '../../utils/cn';
 import { RunningWindowInfo } from '../../types/application';
+
+const WEB_PRESETS = [
+  { name: 'YouTube', url: 'https://youtube.com', icon: '▶' },
+  { name: 'GitHub', url: 'https://github.com', icon: '🐙' },
+  { name: 'ChatGPT', url: 'https://chatgpt.com', icon: '🤖' },
+  { name: 'Notion', url: 'https://notion.so', icon: '📝' },
+  { name: 'Google Docs', url: 'https://docs.google.com', icon: '📄' },
+  { name: 'Slack', url: 'https://slack.com', icon: '💬' },
+];
 
 export const AppShell: React.FC = () => {
   const { runningWindows, loadApplications, isLoading, focusWindow } = useApplicationStore();
@@ -40,15 +43,15 @@ export const AppShell: React.FC = () => {
     setOpacity,
     setAlwaysOnTop,
     setLocked,
-    setDisplayMode,
     minimizeMonitor,
     restoreMonitor,
     focusSource,
   } = useMonitorStore();
   const { settings, updateSettings, setTheme } = useSettingsStore();
 
+  const [sourceTab, setSourceTab] = useState<'apps' | 'web'>('apps');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [webUrl, setWebUrl] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState<'appearance' | 'database'>('appearance');
 
@@ -56,401 +59,475 @@ export const AppShell: React.FC = () => {
   const filteredWindows = runningWindows.filter(
     (win) =>
       win.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      win.appName.toLowerCase().includes(searchTerm.toLowerCase())
+      win.appName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (win.processId && String(win.processId).includes(searchTerm))
   );
 
   const handleCreateMonitor = async (win: RunningWindowInfo) => {
-    // If the monitor already exists, bring it forward instead of creating a duplicate
-    const existing = monitors.find(
-      (m) => (win.handle && m.targetHwnd === win.handle) || m.sourceWindowId === win.sourceId
-    );
-    if (existing) {
-      focusSource(existing.id);
-      return;
-    }
-
-    // Default to interactive mirror with real-time low latency input forwarding
-    await createMonitor({
-      title: win.title,
-      sourceWindowId: win.sourceId,
-      targetHwnd: win.handle,
-      processId: win.processId,
-      displayMode: 'live-monitor',
-      alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
-      opacity: settings.defaultOpacity ?? 1.0,
-      width: settings.defaultWidth || 480,
-      height: settings.defaultHeight || 320,
-    });
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
     try {
-      const raw = e.dataTransfer.getData('application/json');
-      if (raw) {
-        const item = JSON.parse(raw);
-        const existing = monitors.find(
-          (m) => (item.handle && m.targetHwnd === item.handle) || m.sourceWindowId === item.sourceId
-        );
-        if (existing) {
-          focusSource(existing.id);
-          return;
-        }
-
-        await createMonitor({
-          title: item.title,
-          sourceWindowId: item.sourceId,
-          targetHwnd: item.handle,
-          processId: item.processId,
-          displayMode: 'live-monitor',
-          alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
-          opacity: settings.defaultOpacity ?? 1.0,
-          width: settings.defaultWidth || 480,
-          height: settings.defaultHeight || 320,
-        });
+      const existing = monitors.find(
+        (m) => (win.handle && m.targetHwnd === win.handle) || m.sourceWindowId === win.sourceId
+      );
+      if (existing) {
+        focusSource(existing.id);
+        return;
       }
+
+      await createMonitor({
+        title: win.title,
+        sourceWindowId: win.sourceId,
+        targetHwnd: win.handle,
+        processId: win.processId,
+        displayMode: 'live-monitor',
+        alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
+        opacity: settings.defaultOpacity ?? 1.0,
+        width: settings.defaultWidth || 480,
+        height: settings.defaultHeight || 320,
+      });
     } catch (err) {
-      console.error('Failed to create monitor from drop', err);
+      console.error('Failed to create monitor', err);
     }
   };
+
+  const handleCreateWebMonitor = async (targetUrl?: string) => {
+    let finalUrl = (targetUrl || webUrl).trim();
+    if (!finalUrl) return;
+
+    if (!/^https?:\/\//i.test(finalUrl)) {
+      finalUrl = 'https://' + finalUrl;
+    }
+
+    try {
+      let hostname = finalUrl;
+      try {
+        hostname = new URL(finalUrl).hostname;
+      } catch {}
+
+      await createMonitor({
+        title: hostname,
+        url: finalUrl,
+        displayMode: 'web',
+        alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
+        opacity: settings.defaultOpacity ?? 1.0,
+        width: settings.defaultWidth || 480,
+        height: settings.defaultHeight || 320,
+      });
+      setWebUrl('');
+    } catch (err) {
+      console.error('Failed to create web monitor', err);
+    }
+  };
+
+  const pinnedCount = monitors.filter((m) => m.alwaysOnTop).length;
+  const backgroundCount = monitors.filter((m) => !m.alwaysOnTop).length;
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-100 text-slate-800 select-none font-sans rounded-mac-xl border border-slate-300 shadow-mac-window">
-      {/* Header with Float-Space Branding & Window Controls */}
-      <header className="h-11 w-full flex items-center justify-between px-3.5 border-b border-slate-200 select-none app-drag-region shrink-0 bg-white/80 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <MacTrafficLights
-            onClose={() => ipcClient.closeMain()}
-            onMinimize={() => ipcClient.minimizeMain()}
-            onMaximize={() => ipcClient.maximizeMain()}
-          />
-          <div className="flex items-center gap-2 pl-2">
-            <Monitor size={15} className="text-primary-500" />
-            <span className="text-xs font-bold tracking-tight text-slate-900">
-              Float-Space
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium">Desktop Monitor</span>
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-100 text-slate-800 select-none font-sans rounded-none border border-slate-300 shadow-2xl">
+      {/* Header bar matching user's design */}
+      <header className="h-11 w-full flex items-center justify-between px-3.5 border-b border-slate-200 select-none app-drag-region shrink-0 bg-white">
+        <div className="flex items-center gap-2.5">
+          {/* Float-Space Logo */}
+          <div className="w-6 h-6 rounded-md bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Monitor size={14} className="stroke-[2.5]" />
+          </div>
+
+          <span className="text-sm font-bold tracking-tight text-slate-800">
+            Float-Space
+          </span>
+
+          {/* Platform Monitor Badge */}
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300">
+            Windows Monitor
+          </span>
+
+          <div className="flex items-center gap-1.5 ml-1.5 app-no-drag">
+            <button
+              onClick={() => loadApplications()}
+              className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-xs"
+              title="Refresh running applications"
+            >
+              <RefreshCw size={12} className={isLoading ? 'animate-spin text-teal-600' : ''} />
+              Refresh
+            </button>
+
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-xs"
+              title="Settings & Storage"
+            >
+              <SettingsIcon size={12} />
+              Settings
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 app-no-drag">
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />}
-            onClick={() => loadApplications()}
-            title="Refresh running applications"
+        {/* Windows Standard Window Controls */}
+        <div className="flex items-center app-no-drag -mr-2">
+          <button
+            onClick={() => ipcClient.minimizeMain()}
+            className="w-9 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+            title="Minimize"
           >
-            Refresh
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<SettingsIcon size={12} />}
-            onClick={() => setSettingsOpen(true)}
-            title="Settings & Storage"
+            <Minus size={13} />
+          </button>
+          <button
+            onClick={() => ipcClient.maximizeMain()}
+            className="w-9 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+            title="Maximize"
           >
-            Settings
-          </Button>
+            <Square size={11} />
+          </button>
+          <button
+            onClick={() => ipcClient.closeMain()}
+            className="w-9 h-8 flex items-center justify-center text-slate-500 hover:bg-rose-500 hover:text-white transition-colors"
+            title="Close"
+          >
+            <X size={14} />
+          </button>
         </div>
       </header>
 
       {/* Main Two-Column Workflow Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Column: Running Applications & Browser Windows */}
-        <section className="w-80 border-r border-slate-200 flex flex-col bg-slate-50/70 app-no-drag">
-          <div className="p-3 border-b border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <AppWindow size={13} /> Running Applications ({filteredWindows.length})
-              </h2>
+        {/* Left Column: Running Applications & Website Monitor */}
+        <section className="w-[370px] border-r border-slate-200 flex flex-col bg-white shrink-0 app-no-drag">
+          <div className="p-3 border-b border-slate-200 space-y-2.5">
+            {/* Header with counter */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  {sourceTab === 'apps' ? 'Running Applications' : 'Website Monitor'}
+                </h2>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">
+                {sourceTab === 'apps' ? filteredWindows.length : 'Web'}
+              </span>
             </div>
-            <Input
-              icon={<Search size={13} />}
-              placeholder="Filter running windows..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-7 text-xs"
-            />
-          </div>
 
-          <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
-            {filteredWindows.length === 0 ? (
-              <div className="p-6 text-center text-slate-400">
-                <AppWindow size={24} className="mx-auto mb-1.5 opacity-50" />
-                <p className="text-xs">No matching windows detected.</p>
-                <p className="text-[10px] text-slate-500 mt-1">Make sure the application is open and visible on your desktop.</p>
+            {/* Source Tab Switcher (Applications vs Website) */}
+            <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200">
+              <button
+                onClick={() => setSourceTab('apps')}
+                className={cn(
+                  'flex-1 py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5',
+                  sourceTab === 'apps'
+                    ? 'bg-white text-slate-800 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+              >
+                <AppWindow size={13} /> Applications
+              </button>
+              <button
+                onClick={() => setSourceTab('web')}
+                className={cn(
+                  'flex-1 py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5',
+                  sourceTab === 'web'
+                    ? 'bg-white text-slate-800 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                )}
+              >
+                <Globe size={13} /> Website URL
+              </button>
+            </div>
+
+            {/* Applications Search Box */}
+            {sourceTab === 'apps' ? (
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search Windows apps or PID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full h-8 pl-8 pr-3 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:border-teal-500 transition-colors placeholder:text-slate-400"
+                />
               </div>
             ) : (
-              filteredWindows.map((win) => {
-                const existingMon = monitors.find(
-                  (m) => (win.handle && m.targetHwnd === win.handle) || m.sourceWindowId === win.sourceId
-                );
-                const isFloating = !!existingMon;
-
-                return (
-                  <div
-                    key={win.id}
-                    draggable={!isFloating}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('application/json', JSON.stringify(win));
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }}
-                    className={cn(
-                      'group p-2.5 rounded-mac border transition-all flex items-center justify-between gap-2 shadow-sm',
-                      isFloating
-                        ? 'border-emerald-200 bg-emerald-50/40'
-                        : 'border-slate-200 bg-white hover:border-primary-500/40 hover:bg-primary-50/50 cursor-grab active:cursor-grabbing'
-                    )}
-                    title={isFloating ? 'Currently floating on screen' : 'Drag onto the monitor area or click Float to create a monitor'}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 pr-1">
-                      {win.iconDataUrl ? (
-                        <img src={win.iconDataUrl} alt="" className="w-5 h-5 rounded shrink-0 object-contain" />
-                      ) : (
-                        <div className="w-5 h-5 rounded bg-primary-500/10 text-primary-500 flex items-center justify-center shrink-0 text-[10px] font-bold">
-                          {win.appName.charAt(0)}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium text-slate-800 truncate leading-snug">
-                          {win.title}
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
-                          <span>{win.appName} {win.processId ? `• PID ${win.processId}` : ''}</span>
-                          {isFloating ? (
-                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-700">
-                              Active Float
-                            </span>
-                          ) : win.handle && win.handle !== '0' ? (
-                            <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-emerald-500/15 text-emerald-600">
-                              Interactive
-                            </span>
-                          ) : (
-                            <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-sky-500/15 text-sky-600">
-                              Preview
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isFloating ? (
-                        <button
-                          onClick={() => focusSource(existingMon.id)}
-                          className="px-2 py-1 rounded-mac text-[11px] font-medium bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-all flex items-center gap-1"
-                          title="Focus floating monitor"
-                        >
-                          Focus
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleCreateMonitor(win)}
-                          className="px-2 py-1 rounded-mac text-[11px] font-medium bg-primary-500/10 hover:bg-primary-500 text-primary-600 hover:text-white transition-all flex items-center gap-1"
-                          title="Turn into floating monitor"
-                        >
-                          <Plus size={11} /> Float
-                        </button>
-                      )}
-                    </div>
+              /* Website URL Input Bar */
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <Globe size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="e.g. youtube.com, notion.so..."
+                      value={webUrl}
+                      onChange={(e) => setWebUrl(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCreateWebMonitor()}
+                      className="w-full h-8 pl-8 pr-2.5 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:border-teal-500 transition-colors placeholder:text-slate-400"
+                    />
                   </div>
-                );
-              })
+                  <button
+                    onClick={() => handleCreateWebMonitor()}
+                    className="h-8 px-3 rounded-md bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center gap-1 shrink-0 shadow-xs"
+                  >
+                    <Plus size={11} /> Float Web
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
-          <div className="p-2 border-t border-slate-200 text-[10px] text-slate-400 text-center">
-            Tip: Drag any app into the monitor zone
+          {/* List Area */}
+          <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
+            {sourceTab === 'apps' ? (
+              filteredWindows.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">
+                  <AppWindow size={24} className="mx-auto mb-1.5 opacity-40 text-slate-400" />
+                  <p className="text-xs font-medium text-slate-600">No matching windows found</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Make sure the application is open on your desktop.</p>
+                </div>
+              ) : (
+                filteredWindows.map((win) => {
+                  const existingMon = monitors.find(
+                    (m) => (win.handle && m.targetHwnd === win.handle) || m.sourceWindowId === win.sourceId
+                  );
+                  const isFloating = !!existingMon;
+
+                  return (
+                    <div
+                      key={win.id}
+                      className={cn(
+                        'p-2.5 rounded-lg border transition-all flex items-center justify-between gap-2.5 shadow-2xs',
+                        isFloating
+                          ? 'border-l-4 border-l-teal-600 border-teal-200 bg-teal-50/20'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      )}
+                    >
+                      {/* Left icon and title */}
+                      <div className="flex items-center gap-2.5 min-w-0 pr-1">
+                        {win.iconDataUrl ? (
+                          <img
+                            src={win.iconDataUrl}
+                            alt=""
+                            className="w-6 h-6 rounded shrink-0 object-contain"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center shrink-0 text-[11px] font-bold">
+                            {win.appName.charAt(0)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-slate-800 truncate leading-snug">
+                            {win.title}
+                          </div>
+                          <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {win.appName} {win.processId ? `• PID ${win.processId}` : ''}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right button */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isFloating ? (
+                          <button
+                            onClick={() => focusSource(existingMon.id)}
+                            className="px-2.5 py-1 text-xs font-semibold rounded-md bg-teal-100 hover:bg-teal-200 text-teal-800 transition-colors flex items-center gap-1 shadow-2xs"
+                            title="Bring the floating monitor to focus"
+                          >
+                            <ExternalLink size={11} /> Focus
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleCreateMonitor(win)}
+                            className="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-900 hover:bg-slate-800 text-white transition-colors flex items-center gap-1 shadow-xs"
+                            title="Open inside floating monitor"
+                          >
+                            <Plus size={11} /> Float
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )
+            ) : (
+              /* Quick Website Presets */
+              <div className="space-y-3 pt-1">
+                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-1">
+                  Popular Web Monitoring Presets
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {WEB_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      onClick={() => handleCreateWebMonitor(preset.url)}
+                      className="p-2.5 rounded-lg border border-slate-200 bg-white hover:border-teal-500 hover:bg-teal-50/30 transition-all text-left flex items-center justify-between group shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-base shrink-0">{preset.icon}</span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-slate-800 truncate">
+                            {preset.name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate">
+                            {preset.url.replace('https://', '')}
+                          </div>
+                        </div>
+                      </div>
+                      <Plus size={12} className="text-slate-400 group-hover:text-teal-600 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom status bar matching user's design */}
+          <div className="p-2.5 px-3 border-t border-slate-200 flex items-center justify-between text-xs bg-white">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              Win32 DWM Capture Ready
+            </div>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-600">
+              60 FPS
+            </span>
           </div>
         </section>
 
-        {/* Right Column: Drag & Drop Zone and Active Floating Monitors */}
-        <section className="flex-1 flex flex-col p-4 overflow-y-auto space-y-4 app-no-drag">
-          {/* Simple Drag & Drop Area */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'copy';
-              setIsDragOver(true);
-            }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={handleDrop}
-            className={cn(
-              'border-2 border-dashed rounded-mac-lg p-5 text-center transition-all flex flex-col items-center justify-center min-h-[110px]',
-              isDragOver
-                ? 'border-primary-500 bg-primary-500/10 scale-[1.01]'
-                : 'border-slate-300 hover:border-slate-400 bg-white/70'
-            )}
-          >
-            <Tv size={24} className={isDragOver ? 'text-primary-500 animate-bounce' : 'text-slate-400 mb-1'} />
-            <h3 className="text-xs font-semibold text-slate-800 mt-1">
-              {isDragOver ? 'Release to Create Floating Monitor' : 'Drag & Drop an Application Here'}
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm">
-              Instantly spawns an independent floating window you can pin above all apps or keep in the background.
-            </p>
-          </div>
-
-          {/* Active Floating Monitors List */}
-          <div className="flex-1 flex flex-col space-y-2">
-            <div className="flex items-center justify-between pb-1">
-              <h2 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <Monitor size={13} /> Active Floating Monitors ({monitors.length})
-              </h2>
-              {monitors.length > 0 && (
-                <span className="text-[11px] text-slate-400">
-                  {monitors.filter((m) => m.alwaysOnTop).length} Pinned • {monitors.filter((m) => !m.alwaysOnTop).length} Background
-                </span>
-              )}
-            </div>
-
-            {monitors.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center border border-slate-200 rounded-mac-lg bg-white/50">
-                <Monitor size={32} className="text-slate-300 mb-2" />
-                <h4 className="text-xs font-semibold text-slate-700">
-                  No Floating Monitors Open
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
-                  Select an application from the left list or drag it into the drop zone above.
+        {/* Right Column: Active Floating Monitors (matching user's screenshot exactly!) */}
+        <section className="flex-1 bg-slate-50/60 p-6 flex flex-col space-y-4 overflow-y-auto app-no-drag">
+          {/* Header Card matching user's image */}
+          <div className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-xs flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center shrink-0">
+                <Layers size={18} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-800">
+                  Active Floating Monitors ({monitors.length})
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Always-on-top Picture-in-Picture overlays
                 </p>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {monitors.map((mon) => (
-                  <div
-                    key={mon.id}
-                    className="p-3 rounded-mac-lg border border-slate-200 bg-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-all"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-xs font-semibold text-slate-900 truncate">
-                          {mon.title}
-                        </span>
-                        {/* Mode Badge: Interactive vs Visual Preview */}
-                        <Badge variant={mon.displayMode === 'embedded' ? 'success' : 'secondary'}>
-                          {mon.displayMode === 'embedded' ? 'Native Interactive' : 'Live Visual Preview'}
-                        </Badge>
-                        {/* Status: Always on Top / Pin vs Background Mode */}
-                        <Badge variant={mon.alwaysOnTop ? 'primary' : 'secondary'}>
-                          {mon.alwaysOnTop ? 'Pinned' : 'Background'}
-                        </Badge>
-                        {mon.isLocked && <Badge variant="warning">Locked</Badge>}
-                        {mon.isMinimized && <Badge variant="secondary">Minimized</Badge>}
-                      </div>
+            </div>
 
-                      <div className="text-[11px] text-slate-500 flex items-center gap-3">
-                        <span>Size: {mon.width} × {mon.height}px</span>
-                        <span>Opacity: {Math.round(mon.opacity * 100)}%</span>
-                      </div>
+            <div className="flex items-center gap-2">
+              <div className="bg-teal-800 text-white px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 shadow-xs">
+                <Pin size={11} className="fill-current" />
+                <span>{pinnedCount} Pinned</span>
+              </div>
+              <div className="bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1 rounded-md text-xs font-medium">
+                {backgroundCount} Background
+              </div>
+            </div>
+          </div>
+
+          {/* Active Monitors List */}
+          {monitors.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white/60">
+              <div className="w-12 h-12 rounded-full bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center mb-3">
+                <Monitor size={22} />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800">
+                No Floating Monitors Open
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
+                Click <span className="font-semibold text-slate-700">+ Float</span> next to any running application on the left, or switch to the Website tab to monitor any URL.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {monitors.map((mon) => (
+                <div
+                  key={mon.id}
+                  className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
+                >
+                  {/* Left: LIVE pill indicator */}
+                  <div className="bg-slate-900 text-white rounded-lg px-2.5 py-2 flex items-center justify-center font-bold text-[10px] tracking-wider gap-1.5 shrink-0 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    LIVE
+                  </div>
+
+                  {/* Center: Title and dimensions + opacity */}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-800 truncate">
+                      {mon.title}
                     </div>
+                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                      <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] font-mono font-medium">
+                        {mon.width} × {mon.height}px
+                      </span>
 
-                    {/* Compact Monitor Controls */}
-                    <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-                      {/* Mode Toggle: Interactive vs Visual Preview */}
-                      <button
-                        onClick={() =>
-                          setDisplayMode(mon.id, mon.displayMode === 'embedded' ? 'live-monitor' : 'embedded')
-                        }
-                        className={cn(
-                          'px-2 py-1 rounded text-xs font-medium border flex items-center gap-1 transition-all',
-                          mon.displayMode === 'embedded'
-                            ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/25'
-                            : 'bg-sky-500/15 text-sky-600 border-sky-500/30 hover:bg-sky-500/25'
-                        )}
-                        title={
-                          mon.displayMode === 'embedded'
-                            ? 'Native Interactive mode active. Click to switch to Live Capture.'
-                            : 'Live Visual Preview active. Click to switch to Native Embedding.'
-                        }
-                      >
-                        {mon.displayMode === 'embedded' ? 'Interactive' : 'Visual Preview'}
-                      </button>
-
-                      {/* Pin Toggle: Always on Top vs Background Mode */}
-                      <button
-                        onClick={() => setAlwaysOnTop(mon.id, !mon.alwaysOnTop)}
-                        className={cn(
-                          'px-2 py-1 rounded text-xs font-medium border flex items-center gap-1 transition-all',
-                          mon.alwaysOnTop
-                            ? 'bg-primary-500 text-white border-primary-500 shadow-sm'
-                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                        )}
-                        title={mon.alwaysOnTop ? 'Disable pin (Keep in background)' : 'Pin above other windows'}
-                      >
-                        <Pin size={11} className={mon.alwaysOnTop ? 'fill-current' : ''} />
-                        {mon.alwaysOnTop ? 'Pinned' : 'Background'}
-                      </button>
-
-                      {/* Lock Toggle */}
-                      <button
-                        onClick={() => setLocked(mon.id, !mon.isLocked)}
-                        className={cn(
-                          'p-1.5 rounded text-xs border transition-all',
-                          mon.isLocked
-                            ? 'bg-amber-500/20 text-amber-700 border-amber-300'
-                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                        )}
-                        title={mon.isLocked ? 'Unlock position and size' : 'Lock position and size'}
-                      >
-                        {mon.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
-                      </button>
-
-                      {/* Focus Original App */}
-                      <button
-                        onClick={() => focusSource(mon.id)}
-                        className="p-1.5 rounded text-xs border bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-all"
-                        title="Bring the original application to front"
-                      >
-                        <ExternalLink size={12} />
-                      </button>
-
-                      {/* Minimize Monitor */}
-                      <button
-                        onClick={() => (mon.isMinimized ? restoreMonitor(mon.id) : minimizeMonitor(mon.id))}
-                        className="px-2 py-1 rounded text-xs border bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-all"
-                        title={mon.isMinimized ? 'Restore window' : 'Minimize window'}
-                      >
-                        {mon.isMinimized ? 'Restore' : 'Min'}
-                      </button>
-
-                      {/* Close Monitor */}
-                      <button
-                        onClick={() => closeMonitor(mon.id)}
-                        className="p-1.5 rounded text-xs text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all"
-                        title="Close monitor"
-                      >
-                        <X size={12} />
-                      </button>
+                      {/* Opacity Slider */}
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                        <span>Opacity</span>
+                        <input
+                          type="range"
+                          min="20"
+                          max="100"
+                          value={Math.round(mon.opacity * 100)}
+                          onChange={(e) => setOpacity(mon.id, parseInt(e.target.value, 10) / 100)}
+                          className="w-16 h-1 bg-slate-200 rounded-lg accent-teal-600 cursor-pointer"
+                        />
+                        <span className="font-mono font-bold text-slate-700 text-[10px] w-7 text-right">
+                          {Math.round(mon.opacity * 100)}%
+                        </span>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+
+                  {/* Right Actions: Pinned, Min, Close */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Pin/Unpin Toggle */}
+                    <button
+                      onClick={() => setAlwaysOnTop(mon.id, !mon.alwaysOnTop)}
+                      className={cn(
+                        'px-3 py-1.5 text-xs font-semibold rounded-md shadow-xs flex items-center gap-1.5 transition-colors',
+                        mon.alwaysOnTop
+                          ? 'bg-teal-800 hover:bg-teal-900 text-white'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                      )}
+                      title={mon.alwaysOnTop ? 'Disable pin (Keep in background)' : 'Pin above other windows'}
+                    >
+                      <Pin size={11} className={mon.alwaysOnTop ? 'fill-current' : ''} />
+                      {mon.alwaysOnTop ? 'Pinned' : 'Background'}
+                    </button>
+
+                    {/* Minimize/Restore */}
+                    <button
+                      onClick={() => (mon.isMinimized ? restoreMonitor(mon.id) : minimizeMonitor(mon.id))}
+                      className="border border-slate-200 text-slate-700 hover:bg-slate-50 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors"
+                      title={mon.isMinimized ? 'Restore window' : 'Minimize window'}
+                    >
+                      {mon.isMinimized ? 'Restore' : '— Min'}
+                    </button>
+
+                    {/* Close */}
+                    <button
+                      onClick={() => closeMonitor(mon.id)}
+                      className="border border-rose-200 text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1"
+                      title="Close monitor"
+                    >
+                      <X size={11} /> Close
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
 
-      {/* Settings & Storage Dialog */}
+      {/* Settings Dialog */}
       <Dialog
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         title="Float-Space Settings"
-        description="Appearance preferences, default behavior, and local SQLite database."
-        className="max-w-2xl"
+        description="Preferences and SQLite database management."
+        className="max-w-xl"
       >
         <div className="space-y-4 pt-1">
-          {/* Settings Tab Navigation */}
           <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
             <button
               onClick={() => setActiveSettingsTab('appearance')}
               className={cn(
-                'px-3 py-1 rounded-mac text-xs font-medium transition-colors',
+                'px-3 py-1 rounded-md text-xs font-semibold transition-colors',
                 activeSettingsTab === 'appearance'
-                  ? 'bg-primary-500 text-white'
-                  : 'text-slate-600 hover:bg-slate-200/50'
+                  ? 'bg-slate-900 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
               )}
             >
               Preferences
@@ -458,87 +535,65 @@ export const AppShell: React.FC = () => {
             <button
               onClick={() => setActiveSettingsTab('database')}
               className={cn(
-                'px-3 py-1 rounded-mac text-xs font-medium transition-colors',
+                'px-3 py-1 rounded-md text-xs font-semibold transition-colors',
                 activeSettingsTab === 'database'
-                  ? 'bg-primary-500 text-white'
-                  : 'text-slate-600 hover:bg-slate-200/50'
+                  ? 'bg-slate-900 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
               )}
             >
-              Database & Storage
+              SQLite Database
             </button>
           </div>
 
           {activeSettingsTab === 'appearance' ? (
             <div className="space-y-4 text-xs">
-              {/* Default Floating Monitor Behavior */}
               <div className="space-y-2">
-                <label className="flex items-center justify-between p-2 rounded-mac hover:bg-slate-100 cursor-pointer">
-                  <div>
-                    <div className="font-medium text-slate-800">
-                      Default: Always on Top (Pinned)
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      When enabled, newly created floating monitors default to always-on-top. Otherwise, they start in background mode.
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.defaultAlwaysOnTop}
-                    onChange={(e) => updateSettings({ defaultAlwaysOnTop: e.target.checked })}
-                    className="accent-primary-500 w-4 h-4 cursor-pointer"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-2 rounded-mac hover:bg-slate-100 cursor-pointer">
-                  <div>
-                    <div className="font-medium text-slate-800">
-                      Restore Session on Startup
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      Automatically reload open floating monitors from SQLite database upon launching Float-Space.
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.restorePreviousSession}
-                    onChange={(e) => updateSettings({ restorePreviousSession: e.target.checked })}
-                    className="accent-primary-500 w-4 h-4 cursor-pointer"
-                  />
-                </label>
-              </div>
-
-              {/* Frame rate */}
-              <div className="pt-2 border-t border-slate-200">
-                <label className="block font-semibold text-slate-800 mb-1.5">
-                  Capture Frame Rate
-                </label>
+                <label className="font-semibold text-slate-700 block">Theme</label>
                 <div className="flex items-center gap-2">
-                  {[15, 30, 60].map((fps) => (
+                  {(['light', 'dark', 'system'] as const).map((t) => (
                     <button
-                      key={fps}
-                      onClick={() => updateSettings({ captureFrameRate: fps })}
+                      key={t}
+                      onClick={() => setTheme(t)}
                       className={cn(
-                        'px-3 py-1 rounded-mac border text-xs font-medium transition-all',
-                        settings.captureFrameRate === fps
-                          ? 'bg-primary-500 text-white border-primary-500'
-                          : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                        'px-3 py-1.5 rounded-md border text-xs font-medium capitalize transition-all',
+                        settings.theme === t
+                          ? 'border-teal-600 bg-teal-50 text-teal-800'
+                          : 'border-slate-200 hover:bg-slate-50 text-slate-600'
                       )}
                     >
-                      {fps} FPS
+                      {t}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-semibold text-slate-700 block">Default Monitor Dimensions</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] text-slate-500 mb-1 block">Width (px)</span>
+                    <input
+                      type="number"
+                      value={settings.defaultWidth || 480}
+                      onChange={(e) => updateSettings({ defaultWidth: parseInt(e.target.value, 10) || 480 })}
+                      className="w-full h-8 px-2.5 bg-white border border-slate-200 rounded-md text-xs focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-500 mb-1 block">Height (px)</span>
+                    <input
+                      type="number"
+                      value={settings.defaultHeight || 320}
+                      onChange={(e) => updateSettings({ defaultHeight: parseInt(e.target.value, 10) || 320 })}
+                      className="w-full h-8 px-2.5 bg-white border border-slate-200 rounded-md text-xs focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           ) : (
             <DatabaseSettings />
           )}
-
-          <div className="flex justify-end pt-2 border-t border-slate-200">
-            <Button size="sm" variant="secondary" onClick={() => setSettingsOpen(false)}>
-              Done
-            </Button>
-          </div>
         </div>
       </Dialog>
     </div>
