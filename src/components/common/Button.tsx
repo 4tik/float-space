@@ -17,17 +17,17 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    'inline-flex items-center justify-center font-medium rounded-mac transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-primary-500/40 disabled:opacity-50 disabled:cursor-not-allowed app-no-drag';
+    'inline-flex items-center justify-center font-medium rounded-[6px] transition-all duration-150 select-none focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed app-no-drag cursor-pointer';
 
   const variantClasses = {
     primary:
-      'bg-primary-600 hover:bg-primary-500 active:bg-primary-700 text-white shadow-sm border border-primary-700/20',
+      'bg-[#1D1D1F] hover:bg-black active:brightness-95 text-[#FAF9F6] shadow-[0_1px_2px_rgba(0,0,0,0.12)] border border-[#1D1D1F]',
     secondary:
-      'bg-slate-100 hover:bg-slate-200 active:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/15 dark:active:bg-white/20 text-slate-800 dark:text-slate-100 border border-slate-300/40 dark:border-white/10 shadow-sm',
+      'bg-white hover:bg-stone-50 active:bg-stone-100 text-[#1D1D1F] border border-black/[0.1] shadow-[0_1px_1px_rgba(0,0,0,0.03)]',
     ghost:
-      'bg-transparent hover:bg-slate-200/50 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300',
+      'bg-transparent hover:bg-black/[0.05] text-stone-700',
     danger:
-      'bg-red-600 hover:bg-red-500 active:bg-red-700 text-white shadow-sm border border-red-700/20',
+      'bg-white text-[#C92A22] hover:bg-[#FF5F56]/10 border border-[#FF5F56]/30 shadow-[0_1px_1px_rgba(0,0,0,0.03)]',
   };
 
   const sizeClasses = {

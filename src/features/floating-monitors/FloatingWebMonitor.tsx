@@ -83,14 +83,14 @@ export const FloatingWebMonitor: React.FC<FloatingWebMonitorProps> = ({ url, tit
   }
 
   return (
-    <div className="flex-1 w-full h-full flex flex-col bg-slate-100 overflow-hidden select-none">
+    <div className="flex-1 w-full h-full flex flex-col bg-[#FAF9F6] overflow-hidden select-none">
       {/* Mini Web Navigation Bar */}
-      <div className="h-7 w-full bg-slate-50 border-b border-slate-200 px-2 flex items-center justify-between text-xs text-slate-600 gap-2 shrink-0">
+      <div className="h-7 w-full bg-[#F5F4F0]/90 border-b border-black/[0.08] px-2 flex items-center justify-between text-xs text-stone-600 gap-2 shrink-0">
         <div className="flex items-center gap-1">
           <button
             onClick={handleBack}
             disabled={!canGoBack}
-            className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1 rounded-[4px] hover:bg-black/[0.05] disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
             title="Go back"
           >
             <ChevronLeft size={13} />
@@ -98,24 +98,24 @@ export const FloatingWebMonitor: React.FC<FloatingWebMonitorProps> = ({ url, tit
           <button
             onClick={handleForward}
             disabled={!canGoForward}
-            className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1 rounded-[4px] hover:bg-black/[0.05] disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
             title="Go forward"
           >
             <ChevronRight size={13} />
           </button>
           <button
             onClick={handleReload}
-            className="p-1 rounded hover:bg-slate-200 transition-colors"
+            className="p-1 rounded-[4px] hover:bg-black/[0.05] transition-colors cursor-pointer"
             title="Reload website"
           >
-            <RotateCw size={11} className={cn(isLoading && 'animate-spin text-teal-600')} />
+            <RotateCw size={11} className={cn(isLoading && 'animate-spin text-amber-600')} />
           </button>
         </div>
 
         {/* URL Pill */}
         <div
           onClick={handleOpenExternal}
-          className="flex-1 max-w-[260px] h-5 bg-white border border-slate-200 rounded px-2 flex items-center gap-1.5 text-[10px] text-slate-700 cursor-pointer hover:border-slate-300 transition-colors truncate"
+          className="flex-1 max-w-[260px] h-5 bg-white border border-black/[0.08] rounded-[5px] px-2 flex items-center gap-1.5 text-[10px] text-stone-700 cursor-pointer hover:border-black/[0.16] shadow-2xs transition-colors truncate"
           title={`Click to open ${currentUrl} in your default browser`}
         >
           <Lock size={9} className="text-emerald-600 shrink-0" />
@@ -124,7 +124,7 @@ export const FloatingWebMonitor: React.FC<FloatingWebMonitorProps> = ({ url, tit
 
         <button
           onClick={handleOpenExternal}
-          className="p-1 text-slate-400 hover:text-slate-700 transition-colors rounded hover:bg-slate-200"
+          className="p-1 text-stone-400 hover:text-stone-700 transition-colors rounded-[4px] hover:bg-black/[0.05] cursor-pointer"
           title="Open in external browser"
         >
           <ExternalLink size={11} />

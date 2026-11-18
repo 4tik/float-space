@@ -60,8 +60,8 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
   return (
     <div
       className={cn(
-        'h-screen w-screen flex flex-col overflow-hidden rounded-mac-lg border border-slate-300/80 shadow-2xl select-none',
-        isEmbedded ? 'bg-transparent' : 'bg-slate-100'
+        'h-screen w-screen flex flex-col overflow-hidden rounded-[13px] border border-black/[0.12] shadow-[0_24px_60px_-12px_rgba(28,25,23,0.32),0_0_1px_1px_rgba(255,255,255,0.7)_inset] select-none',
+        isEmbedded ? 'bg-transparent' : 'bg-[#FAF9F6]'
       )}
     >
       {/* Top Floating Toolbar (macOS frosted light bar) */}
@@ -91,14 +91,14 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
           // Native Interactive Embedding Container (Transparent so OS renders the child window)
           <div className="flex-1 w-full h-full relative bg-transparent flex flex-col items-center justify-center text-center p-4">
             <div className="absolute inset-0 pointer-events-none flex flex-col justify-end p-2 z-10 opacity-70 hover:opacity-100 transition-opacity">
-              <div className="bg-white/95 backdrop-blur-md text-[10px] text-emerald-800 border border-emerald-300 rounded px-2.5 py-1 flex items-center justify-between pointer-events-auto shadow-sm">
+              <div className="bg-[#FAF9F6]/95 backdrop-blur-md text-[10px] text-emerald-900 border border-emerald-600/30 rounded-[6px] px-2.5 py-1 flex items-center justify-between pointer-events-auto shadow-xs">
                 <span className="flex items-center gap-1.5 font-medium">
                   <MousePointer size={11} className="text-emerald-600" />
                   Native Interactive (Clicks, typing & scrolling active)
                 </span>
                 <button
                   onClick={handleToggleDisplayMode}
-                  className="text-slate-500 hover:text-slate-800 underline text-[9px] ml-2"
+                  className="text-stone-500 hover:text-stone-800 underline text-[9px] ml-2 cursor-pointer"
                 >
                   Switch to Live Capture
                 </button>
@@ -120,17 +120,17 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
             {/* Interactive Control & App Focus Bar */}
             <div
               onClick={handleFocusSource}
-              className="absolute bottom-0 inset-x-0 bg-white/90 backdrop-blur-md border-t border-slate-200 px-2.5 py-1 text-[10px] text-slate-700 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors z-20 shadow-sm"
+              className="absolute bottom-0 inset-x-0 bg-[#F5F4F0]/90 backdrop-blur-md border-t border-black/[0.08] px-3 py-1.5 text-[10.5px] text-stone-600 flex items-center justify-between cursor-pointer hover:bg-stone-200/50 transition-colors z-20 shadow-xs"
               title="Click to bring the original application forward for full OS focus"
             >
               <div className="flex items-center gap-1.5 truncate">
-                <MousePointer size={11} className="text-emerald-600 shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                 <span className="truncate">
-                  Interactive Mirror <span className="text-emerald-600 font-medium">(Clicks, Scroll & Typing Active)</span>
+                  Interactive Mirror <span className="text-emerald-700 font-medium">(Clicks, Scroll & Typing Active)</span>
                 </span>
               </div>
-              <span className="inline-flex items-center gap-1 text-[9px] text-sky-600 font-semibold shrink-0 ml-2">
-                Focus Original <ExternalLink size={9} />
+              <span className="inline-flex items-center gap-1 text-[10px] text-stone-600 font-medium shrink-0 ml-2 hover:text-[#1D1D1F]">
+                Focus Original <ExternalLink size={10} />
               </span>
             </div>
           </div>

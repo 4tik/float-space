@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import {
-  Monitor,
-  AppWindow,
   Search,
   RefreshCw,
   Plus,
   Pin,
-  ExternalLink,
   X,
-  Settings as SettingsIcon,
+  SlidersHorizontal,
   Layers,
   Globe,
   Minus,
-  Square,
+  Maximize2,
   ArrowRight,
-  Sparkles,
+  MonitorOff,
+  AppWindow,
+  ExternalLink,
 } from 'lucide-react';
+import { MacTrafficLights } from '../common/MacTrafficLights';
 import { Dialog } from '../common/Dialog';
 import { DatabaseSettings } from '../../features/settings/DatabaseSettings';
 import { useApplicationStore } from '../../stores/application-store';
@@ -42,7 +42,6 @@ export const AppShell: React.FC = () => {
     closeMonitor,
     setOpacity,
     setAlwaysOnTop,
-    setLocked,
     minimizeMonitor,
     restoreMonitor,
     focusSource,
@@ -54,6 +53,14 @@ export const AppShell: React.FC = () => {
   const [webUrl, setWebUrl] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState<'appearance' | 'database'>('appearance');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((current) => (current === msg ? null : current));
+    }, 2200);
+  };
 
   // Filter running windows based on search term
   const filteredWindows = runningWindows.filter(
@@ -70,6 +77,7 @@ export const AppShell: React.FC = () => {
       );
       if (existing) {
         focusSource(existing.id);
+        showToast(`Focused "${win.appName}"`);
         return;
       }
 
@@ -84,6 +92,7 @@ export const AppShell: React.FC = () => {
         width: settings.defaultWidth || 480,
         height: settings.defaultHeight || 320,
       });
+      showToast(`Floating "${win.appName}"`);
     } catch (err) {
       console.error('Failed to create monitor', err);
     }
@@ -113,432 +122,484 @@ export const AppShell: React.FC = () => {
         height: settings.defaultHeight || 320,
       });
       setWebUrl('');
+      showToast(`Opened web monitor for ${hostname}`);
     } catch (err) {
       console.error('Failed to create web monitor', err);
     }
   };
 
+  const handleRefresh = async () => {
+    await loadApplications();
+    showToast('Refreshed running windows');
+  };
+
   const pinnedCount = monitors.filter((m) => m.alwaysOnTop).length;
-  const backgroundCount = monitors.filter((m) => !m.alwaysOnTop).length;
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-100 text-slate-800 select-none font-sans rounded-none border border-slate-300 shadow-2xl">
-      {/* Header bar matching user's design */}
-      <header className="h-11 w-full flex items-center justify-between px-3.5 border-b border-slate-200 select-none app-drag-region shrink-0 bg-white">
-        <div className="flex items-center gap-2.5">
-          {/* Float-Space Logo */}
-          <div className="w-6 h-6 rounded-md bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Monitor size={14} className="stroke-[2.5]" />
+    <div className="macos-wallpaper text-[#1D1D1F] h-screen w-screen p-2.5 sm:p-3.5 flex flex-col select-none overflow-hidden">
+      {/* Classic macOS Sonoma / Sequoia Window Frame */}
+      <div className="flex-1 flex flex-col bg-[#FAF9F6] rounded-[13px] border border-black/[0.12] shadow-[0_24px_60px_-12px_rgba(28,25,23,0.22),0_0_1px_1px_rgba(255,255,255,0.65)_inset] overflow-hidden transition-all duration-300">
+        
+        {/* Translucent macOS Header / Titlebar */}
+        <header className="sticky top-0 z-30 h-12 bg-[#F5F4F0]/85 backdrop-blur-xl border-b border-black/[0.08] px-3.5 sm:px-4 flex items-center justify-between shrink-0 relative app-drag-region">
+          {/* Left: Traffic Lights */}
+          <div className="flex items-center gap-3 z-10 app-no-drag">
+            <MacTrafficLights
+              onClose={() => ipcClient.closeMain()}
+              onMinimize={() => ipcClient.minimizeMain()}
+              onMaximize={() => ipcClient.maximizeMain()}
+            />
           </div>
 
-          <span className="text-sm font-bold tracking-tight text-slate-800">
-            Float-Space
-          </span>
+          {/* Center: Centered macOS Window Title */}
+          <div className="absolute inset-x-0 flex items-center justify-center pointer-events-none px-24">
+            <div className="flex items-center gap-2 truncate">
+              <span className="w-4 h-4 rounded-[4px] bg-gradient-to-b from-stone-700 to-stone-900 text-[#FAF9F6] flex items-center justify-center shadow-2xs shrink-0">
+                <Layers size={10} />
+              </span>
+              <h1 className="text-[13px] font-semibold text-[#1D1D1F] tracking-[-0.01em] truncate">
+                Float-Space
+              </h1>
+              <span className="hidden md:inline text-[11px] font-medium text-stone-400">
+                — Window Monitor
+              </span>
+            </div>
+          </div>
 
-          {/* Platform Monitor Badge */}
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300">
-            Windows Monitor
-          </span>
-
-          <div className="flex items-center gap-1.5 ml-1.5 app-no-drag">
+          {/* Right: macOS Action Buttons */}
+          <div className="flex items-center gap-1.5 z-10 app-no-drag">
             <button
-              onClick={() => loadApplications()}
-              className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-xs"
-              title="Refresh running applications"
+              onClick={handleRefresh}
+              title="Refresh Running Applications"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-stone-700 bg-white/85 hover:bg-white active:bg-stone-100 border border-black/[0.09] rounded-[6px] shadow-[0_1px_1px_rgba(0,0,0,0.03)] transition-all cursor-pointer"
             >
-              <RefreshCw size={12} className={isLoading ? 'animate-spin text-teal-600' : ''} />
-              Refresh
+              <RefreshCw size={13} className={cn('text-stone-600', isLoading && 'animate-spin')} />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
 
             <button
               onClick={() => setSettingsOpen(true)}
-              className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-xs"
-              title="Settings & Storage"
+              title="Settings"
+              className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-stone-700 bg-white/85 hover:bg-white active:bg-stone-100 border border-black/[0.09] rounded-[6px] shadow-[0_1px_1px_rgba(0,0,0,0.03)] transition-all cursor-pointer"
             >
-              <SettingsIcon size={12} />
-              Settings
+              <SlidersHorizontal size={13} className="text-stone-600" />
+              <span className="hidden md:inline">Settings</span>
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Windows Standard Window Controls */}
-        <div className="flex items-center app-no-drag -mr-2">
-          <button
-            onClick={() => ipcClient.minimizeMain()}
-            className="w-9 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-            title="Minimize"
-          >
-            <Minus size={13} />
-          </button>
-          <button
-            onClick={() => ipcClient.maximizeMain()}
-            className="w-9 h-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-            title="Maximize"
-          >
-            <Square size={11} />
-          </button>
-          <button
-            onClick={() => ipcClient.closeMain()}
-            className="w-9 h-8 flex items-center justify-center text-slate-500 hover:bg-rose-500 hover:text-white transition-colors"
-            title="Close"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Two-Column Workflow Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Column: Running Applications & Website Monitor */}
-        <section className="w-[370px] border-r border-slate-200 flex flex-col bg-white shrink-0 app-no-drag">
-          <div className="p-3 border-b border-slate-200 space-y-2.5">
-            {/* Header with counter */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+        {/* Main Split View: Left Sidebar + Right Workspace Canvas */}
+        <div className="flex-1 flex overflow-hidden relative">
+          
+          {/* ===================================================== */}
+          {/* LEFT MACOS VIBRANCY SIDEBAR: RUNNING APPLICATIONS     */}
+          {/* ===================================================== */}
+          <aside className="w-[300px] xl:w-[325px] bg-[#F5F4F0]/90 backdrop-blur-2xl border-r border-black/[0.08] flex flex-col shrink-0 app-no-drag">
+            
+            {/* Sidebar Section Header & Search */}
+            <div className="p-3 pb-2.5 space-y-2.5 shrink-0">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[11px] font-semibold text-stone-500 tracking-tight">
                   {sourceTab === 'apps' ? 'Running Applications' : 'Website Monitor'}
-                </h2>
+                </span>
+                <span className="px-1.5 py-0.2 text-[11px] font-semibold bg-black/[0.06] text-stone-600 rounded-[5px]">
+                  {sourceTab === 'apps' ? filteredWindows.length : 'Web'}
+                </span>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">
-                {sourceTab === 'apps' ? filteredWindows.length : 'Web'}
-              </span>
-            </div>
 
-            {/* Source Tab Switcher (Applications vs Website) */}
-            <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200">
-              <button
-                onClick={() => setSourceTab('apps')}
-                className={cn(
-                  'flex-1 py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5',
-                  sourceTab === 'apps'
-                    ? 'bg-white text-slate-800 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                )}
-              >
-                <AppWindow size={13} /> Applications
-              </button>
-              <button
-                onClick={() => setSourceTab('web')}
-                className={cn(
-                  'flex-1 py-1 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5',
-                  sourceTab === 'web'
-                    ? 'bg-white text-slate-800 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                )}
-              >
-                <Globe size={13} /> Website URL
-              </button>
-            </div>
-
-            {/* Applications Search Box */}
-            {sourceTab === 'apps' ? (
-              <div className="relative">
-                <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search Windows apps or PID..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full h-8 pl-8 pr-3 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:border-teal-500 transition-colors placeholder:text-slate-400"
-                />
+              {/* Segmented Control Switcher (Apps vs Web) */}
+              <div className="flex items-center p-0.5 bg-black/[0.05] rounded-[7px] border border-black/[0.05]">
+                <button
+                  onClick={() => setSourceTab('apps')}
+                  className={cn(
+                    'flex-1 py-1 text-xs font-medium rounded-[5px] transition-all flex items-center justify-center gap-1.5',
+                    sourceTab === 'apps'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+                      : 'text-stone-500 hover:text-stone-800'
+                  )}
+                >
+                  <AppWindow size={12} /> Applications
+                </button>
+                <button
+                  onClick={() => setSourceTab('web')}
+                  className={cn(
+                    'flex-1 py-1 text-xs font-medium rounded-[5px] transition-all flex items-center justify-center gap-1.5',
+                    sourceTab === 'web'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+                      : 'text-stone-500 hover:text-stone-800'
+                  )}
+                >
+                  <Globe size={12} /> Website URL
+                </button>
               </div>
-            ) : (
-              /* Website URL Input Bar */
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <Globe size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+
+              {/* Inset Search Field / Web Input */}
+              {sourceTab === 'apps' ? (
+                <div className="relative flex items-center">
+                  <Search size={13} className="text-stone-400 absolute left-2.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search"
+                    className="w-full pl-8 pr-7 py-1 text-xs bg-black/[0.05] focus:bg-white border border-black/[0.07] focus:border-amber-600/60 rounded-[7px] text-[#1D1D1F] placeholder-stone-400 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] focus:shadow-none focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      title="Clear Search"
+                      className="absolute right-2 w-4 h-4 rounded-full bg-stone-400/70 hover:bg-stone-500 text-white flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <X size={10} className="stroke-[2.5]" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="relative flex items-center">
+                    <Globe size={13} className="text-stone-400 absolute left-2.5 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="e.g. youtube.com, notion.so..."
+                      placeholder="e.g. youtube.com or https://..."
                       value={webUrl}
                       onChange={(e) => setWebUrl(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleCreateWebMonitor()}
-                      className="w-full h-8 pl-8 pr-2.5 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:border-teal-500 transition-colors placeholder:text-slate-400"
+                      className="w-full pl-8 pr-7 py-1 text-xs bg-black/[0.05] focus:bg-white border border-black/[0.07] focus:border-amber-600/60 rounded-[7px] text-[#1D1D1F] placeholder-stone-400 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] focus:shadow-none focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-all"
                     />
                   </div>
                   <button
                     onClick={() => handleCreateWebMonitor()}
-                    className="h-8 px-3 rounded-md bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors flex items-center gap-1 shrink-0 shadow-xs"
+                    disabled={!webUrl.trim()}
+                    className="w-full py-1 text-xs font-medium text-white bg-[#1D1D1F] hover:bg-black disabled:opacity-40 rounded-[6px] transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
                   >
-                    <Plus size={11} /> Float Web
+                    <Plus size={12} /> Float Web
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* List Area */}
-          <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
-            {sourceTab === 'apps' ? (
-              filteredWindows.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">
-                  <AppWindow size={24} className="mx-auto mb-1.5 opacity-40 text-slate-400" />
-                  <p className="text-xs font-medium text-slate-600">No matching windows found</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Make sure the application is open on your desktop.</p>
-                </div>
+            {/* Finder / Activity Monitor Styled App Rows */}
+            <div className="flex-1 overflow-y-auto px-2.5 py-1 space-y-1">
+              {sourceTab === 'apps' ? (
+                filteredWindows.length === 0 ? (
+                  <div className="py-8 px-3 text-center">
+                    <p className="text-xs font-medium text-stone-500">
+                      {isLoading ? 'Scanning windows...' : 'No matching windows'}
+                    </p>
+                  </div>
+                ) : (
+                  filteredWindows.map((win) => {
+                    const isFloating = monitors.some(
+                      (m) => (win.handle && m.targetHwnd === win.handle) || m.sourceWindowId === win.sourceId
+                    );
+
+                    return (
+                      <div
+                        key={win.id || win.sourceId}
+                        className={cn(
+                          'group flex items-center justify-between gap-2 px-2.5 py-2 rounded-[8px] transition-all',
+                          isFloating
+                            ? 'bg-black/[0.06] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]'
+                            : 'hover:bg-black/[0.04]'
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {/* macOS Squircle App Icon (rounded-[7px]) */}
+                          {win.iconDataUrl ? (
+                            <img
+                              src={win.iconDataUrl}
+                              alt=""
+                              className="w-7 h-7 rounded-[7px] object-contain shadow-[0_1px_2px_rgba(0,0,0,0.12)] bg-white p-0.5 border border-black/5 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-[7px] bg-gradient-to-b from-stone-600 to-stone-800 text-white shadow-[0_1px_2px_rgba(0,0,0,0.12)] flex items-center justify-center shrink-0 font-semibold text-[11px]">
+                              {win.appName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+
+                          {/* Title & Metadata */}
+                          <div className="min-w-0">
+                            <p
+                              className="text-[12.5px] font-medium text-[#1D1D1F] leading-tight truncate"
+                              title={win.title}
+                            >
+                              {win.title}
+                            </p>
+                            <div className="flex items-center gap-1 mt-0.5 text-[10.5px] text-stone-500">
+                              <span className="truncate">{win.appName}</span>
+                              {win.processId ? (
+                                <>
+                                  <span>•</span>
+                                  <span className="font-mono text-[10px] text-stone-400">
+                                    PID {win.processId}
+                                  </span>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Pill Button */}
+                        <div className="shrink-0">
+                          {isFloating ? (
+                            <button
+                              onClick={() => {
+                                const m = monitors.find(
+                                  (mon) => (win.handle && mon.targetHwnd === win.handle) || mon.sourceWindowId === win.sourceId
+                                );
+                                if (m) focusSource(m.id);
+                              }}
+                              title="Highlight Active Monitor"
+                              className="px-2.5 py-1 text-[11px] font-semibold text-amber-900 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-600/20 rounded-full transition-colors cursor-pointer"
+                            >
+                              Focus
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleCreateMonitor(win)}
+                              title="Spawn Floating Monitor"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-[#1D1D1F] bg-white hover:bg-stone-50 active:bg-stone-100 border border-black/[0.1] rounded-full shadow-[0_1px_1px_rgba(0,0,0,0.04)] transition-all cursor-pointer"
+                            >
+                              <Plus size={11} className="text-stone-600 stroke-[2.2]" />
+                              <span>Float</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )
               ) : (
-                filteredWindows.map((win) => {
-                  const existingMon = monitors.find(
-                    (m) => (win.handle && m.targetHwnd === win.handle) || m.sourceWindowId === win.sourceId
-                  );
-                  const isFloating = !!existingMon;
+                /* Website Quick Presets */
+                <div className="space-y-2.5 pt-1">
+                  <span className="text-[11px] font-semibold text-stone-500 px-1">Popular Presets</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {WEB_PRESETS.map((p) => (
+                      <button
+                        key={p.name}
+                        onClick={() => handleCreateWebMonitor(p.url)}
+                        className="flex items-center gap-2 p-2 rounded-[8px] bg-white hover:bg-stone-50 border border-black/[0.08] shadow-[0_1px_1px_rgba(0,0,0,0.03)] text-left transition-all cursor-pointer"
+                      >
+                        <span className="text-sm">{p.icon}</span>
+                        <span className="text-xs font-medium text-stone-700 truncate">{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
-                  return (
+            {/* Subtle macOS Sidebar Status Footer */}
+            <div className="px-3.5 py-2 border-t border-black/[0.06] bg-black/[0.02] flex items-center justify-between text-[11px] text-stone-500 shrink-0">
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>WindowServer Ready</span>
+              </span>
+              <span className="font-mono text-[10px] text-stone-400">60 Hz</span>
+            </div>
+          </aside>
+
+          {/* ===================================================== */}
+          {/* RIGHT MAIN WORKSPACE (WARM SAND / OFF-WHITE CANVAS)   */}
+          {/* ===================================================== */}
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#FAF9F6]">
+            <div className="max-w-4xl mx-auto space-y-3.5">
+              
+              {/* Compact Summary Header Bar */}
+              <div className="bg-white/90 border border-black/[0.07] rounded-[10px] px-4 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-[7px] bg-[#F3EFEA] text-stone-700 border border-black/[0.06] flex items-center justify-center shrink-0">
+                    <Layers size={14} />
+                  </div>
+                  <div>
+                    <h2 className="text-[13px] font-semibold text-[#1D1D1F] tracking-[-0.01em]">
+                      Active Monitors ({monitors.length})
+                    </h2>
+                    <p className="text-[11px] text-stone-500">Floating picture-in-picture window overlays</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[11px] font-medium">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-900 border border-amber-600/20">
+                    <Pin size={11} className="text-amber-600 fill-current" />
+                    <span>{pinnedCount} Pinned</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Streamlined Active Monitor Cards List */}
+              <section className="space-y-2.5">
+                {monitors.length === 0 ? (
+                  <div className="bg-white/90 border border-black/[0.07] rounded-[10px] p-10 text-center flex flex-col items-center shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                    <div className="w-10 h-10 rounded-[9px] bg-[#F3EFEA] text-stone-400 flex items-center justify-center mb-2.5">
+                      <MonitorOff size={18} />
+                    </div>
+                    <p className="text-[13px] font-semibold text-[#1D1D1F]">No Active Floating Monitors</p>
+                    <p className="text-xs text-stone-500 mt-1 max-w-xs">
+                      Select <strong className="font-medium text-stone-700">+ Float</strong> next to any application in the sidebar to pin it here.
+                    </p>
+                  </div>
+                ) : (
+                  monitors.map((mon) => (
                     <div
-                      key={win.id}
-                      className={cn(
-                        'p-2.5 rounded-lg border transition-all flex items-center justify-between gap-2.5 shadow-2xs',
-                        isFloating
-                          ? 'border-l-4 border-l-teal-600 border-teal-200 bg-teal-50/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      )}
+                      key={mon.id}
+                      className="bg-white border border-black/[0.08] rounded-[10px] p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-black/[0.14] transition-all"
                     >
-                      {/* Left icon and title */}
-                      <div className="flex items-center gap-2.5 min-w-0 pr-1">
-                        {win.iconDataUrl ? (
-                          <img
-                            src={win.iconDataUrl}
-                            alt=""
-                            className="w-6 h-6 rounded shrink-0 object-contain"
-                          />
-                        ) : (
-                          <div className="w-6 h-6 rounded bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center shrink-0 text-[11px] font-bold">
-                            {win.appName.charAt(0)}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                        
+                        {/* Left: Compact Live Preview Thumbnail + Title + Resolution + Opacity Slider */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-14 h-10 rounded-[7px] bg-[#1D1D1F] border border-black/15 flex flex-col items-center justify-center shrink-0 relative overflow-hidden shadow-inner">
+                            <div className="w-full h-1 bg-stone-700/80 absolute top-0 flex items-center gap-0.5 px-1">
+                              <span className="w-0.5 h-0.5 rounded-full bg-[#FF5F56]"></span>
+                              <span className="w-0.5 h-0.5 rounded-full bg-[#FFBD2E]"></span>
+                              <span className="w-0.5 h-0.5 rounded-full bg-[#27C93F]"></span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 text-[8.5px] font-mono font-semibold text-emerald-400 tracking-wider mt-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                              LIVE
+                            </span>
                           </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-slate-800 truncate leading-snug">
-                            {win.title}
-                          </div>
-                          <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                            {win.appName} {win.processId ? `• PID ${win.processId}` : ''}
-                          </div>
-                        </div>
-                      </div>
 
-                      {/* Right button */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isFloating ? (
-                          <button
-                            onClick={() => focusSource(existingMon.id)}
-                            className="px-2.5 py-1 text-xs font-semibold rounded-md bg-teal-100 hover:bg-teal-200 text-teal-800 transition-colors flex items-center gap-1 shadow-2xs"
-                            title="Bring the floating monitor to focus"
-                          >
-                            <ExternalLink size={11} /> Focus
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleCreateMonitor(win)}
-                            className="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-900 hover:bg-slate-800 text-white transition-colors flex items-center gap-1 shadow-xs"
-                            title="Open inside floating monitor"
-                          >
-                            <Plus size={11} /> Float
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )
-            ) : (
-              /* Quick Website Presets */
-              <div className="space-y-3 pt-1">
-                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-1">
-                  Popular Web Monitoring Presets
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {WEB_PRESETS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      onClick={() => handleCreateWebMonitor(preset.url)}
-                      className="p-2.5 rounded-lg border border-slate-200 bg-white hover:border-teal-500 hover:bg-teal-50/30 transition-all text-left flex items-center justify-between group shadow-2xs"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-base shrink-0">{preset.icon}</span>
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-slate-800 truncate">
-                            {preset.name}
-                          </div>
-                          <div className="text-[10px] text-slate-400 truncate">
-                            {preset.url.replace('https://', '')}
+                          <div className="min-w-0 space-y-1.5 flex-1">
+                            <h3
+                              className="text-[13px] font-semibold text-[#1D1D1F] tracking-[-0.01em] truncate"
+                              title={mon.title}
+                            >
+                              {mon.title}
+                            </h3>
+
+                            {/* Metadata Row: Resolution Pill + Native macOS Opacity Slider */}
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-500">
+                              <span className="font-mono text-[10.5px] font-medium text-stone-600 bg-[#F5F4F0] px-2 py-0.5 rounded-[5px] border border-black/[0.06]">
+                                {mon.width} × {mon.height}
+                              </span>
+
+                              <div className="inline-flex items-center gap-2 bg-[#FAF9F6] border border-black/[0.06] px-2.5 py-0.5 rounded-[5px] text-stone-600">
+                                <span className="text-[10.5px] font-medium text-stone-500">Opacity</span>
+                                <input
+                                  type="range"
+                                  min="25"
+                                  max="100"
+                                  value={Math.round((mon.opacity ?? 1.0) * 100)}
+                                  onChange={(e) => setOpacity(mon.id, Number(e.target.value) / 100)}
+                                  className="macos-slider w-16 sm:w-20"
+                                />
+                                <span className="font-mono text-[10.5px] font-semibold text-[#1D1D1F] w-7 text-right">
+                                  {Math.round((mon.opacity ?? 1.0) * 100)}%
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <Plus size={12} className="text-slate-400 group-hover:text-teal-600 shrink-0" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
 
-          {/* Bottom status bar matching user's design */}
-          <div className="p-2.5 px-3 border-t border-slate-200 flex items-center justify-between text-xs bg-white">
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-              Win32 DWM Capture Ready
-            </div>
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-600">
-              60 FPS
-            </span>
-          </div>
-        </section>
+                        {/* Right: The 3 Essential Actions (Pin, Min, Close) */}
+                        <div className="flex items-center justify-end gap-1.5 shrink-0 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-black/[0.06]">
+                          
+                          {/* 1. Pin Toggle (Warm Amber / Graphite Active State) */}
+                          <button
+                            onClick={() => setAlwaysOnTop(mon.id, !mon.alwaysOnTop)}
+                            title={mon.alwaysOnTop ? 'Pinned Above All Windows' : 'Pin Above Other Windows'}
+                            className={cn(
+                              'inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-[6px] border transition-all cursor-pointer',
+                              mon.alwaysOnTop
+                                ? 'bg-[#262523] text-[#FAF9F6] border-[#262523] shadow-[0_1px_2px_rgba(0,0,0,0.12)]'
+                                : 'bg-white text-stone-700 hover:bg-stone-50 border-black/[0.1] shadow-[0_1px_1px_rgba(0,0,0,0.03)]'
+                            )}
+                          >
+                            <Pin
+                              size={11}
+                              className={cn(
+                                mon.alwaysOnTop ? 'text-amber-400 fill-current' : 'text-stone-500'
+                              )}
+                            />
+                            <span>{mon.alwaysOnTop ? 'Pinned' : 'Pin'}</span>
+                          </button>
 
-        {/* Right Column: Active Floating Monitors (matching user's screenshot exactly!) */}
-        <section className="flex-1 bg-slate-50/60 p-6 flex flex-col space-y-4 overflow-y-auto app-no-drag">
-          {/* Header Card matching user's image */}
-          <div className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-xs flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center shrink-0">
-                <Layers size={18} />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-800">
-                  Active Floating Monitors ({monitors.length})
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Always-on-top Picture-in-Picture overlays
-                </p>
-              </div>
-            </div>
+                          {/* 2. Minimize / Restore */}
+                          <button
+                            onClick={() =>
+                              mon.isMinimized ? restoreMonitor(mon.id) : minimizeMonitor(mon.id)
+                            }
+                            title={mon.isMinimized ? 'Restore Floating Window' : 'Minimize Floating Window'}
+                            className={cn(
+                              'inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-[6px] border transition-all cursor-pointer',
+                              mon.isMinimized
+                                ? 'bg-amber-500/15 text-amber-900 border-amber-600/25'
+                                : 'bg-white text-stone-700 hover:bg-stone-50 border-black/[0.1] shadow-[0_1px_1px_rgba(0,0,0,0.03)]'
+                            )}
+                          >
+                            {mon.isMinimized ? <Maximize2 size={11} className="text-amber-900" /> : <Minus size={11} className="text-stone-600" />}
+                            <span>{mon.isMinimized ? 'Restore' : 'Min'}</span>
+                          </button>
 
-            <div className="flex items-center gap-2">
-              <div className="bg-teal-800 text-white px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 shadow-xs">
-                <Pin size={11} className="fill-current" />
-                <span>{pinnedCount} Pinned</span>
-              </div>
-              <div className="bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1 rounded-md text-xs font-medium">
-                {backgroundCount} Background
-              </div>
-            </div>
-          </div>
+                          {/* 3. Close Overlay */}
+                          <button
+                            onClick={() => closeMonitor(mon.id)}
+                            title="Close Floating Window"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-[6px] bg-white text-stone-600 hover:bg-[#FF5F56]/10 hover:text-[#C92A22] border border-black/[0.1] hover:border-[#FF5F56]/30 shadow-[0_1px_1px_rgba(0,0,0,0.03)] transition-all cursor-pointer"
+                          >
+                            <X size={11} className="stroke-[2.2]" />
+                            <span>Close</span>
+                          </button>
 
-          {/* Active Monitors List */}
-          {monitors.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white/60">
-              <div className="w-12 h-12 rounded-full bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center mb-3">
-                <Monitor size={22} />
-              </div>
-              <h3 className="text-sm font-bold text-slate-800">
-                No Floating Monitors Open
-              </h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
-                Click <span className="font-semibold text-slate-700">+ Float</span> next to any running application on the left, or switch to the Website tab to monitor any URL.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {monitors.map((mon) => (
-                <div
-                  key={mon.id}
-                  className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-xs flex items-center justify-between gap-4 hover:border-slate-300 transition-all"
-                >
-                  {/* Left: LIVE pill indicator */}
-                  <div className="bg-slate-900 text-white rounded-lg px-2.5 py-2 flex items-center justify-center font-bold text-[10px] tracking-wider gap-1.5 shrink-0 shadow-2xs">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    LIVE
-                  </div>
+                        </div>
 
-                  {/* Center: Title and dimensions + opacity */}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold text-slate-800 truncate">
-                      {mon.title}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] font-mono font-medium">
-                        {mon.width} × {mon.height}px
-                      </span>
-
-                      {/* Opacity Slider */}
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-                        <span>Opacity</span>
-                        <input
-                          type="range"
-                          min="20"
-                          max="100"
-                          value={Math.round(mon.opacity * 100)}
-                          onChange={(e) => setOpacity(mon.id, parseInt(e.target.value, 10) / 100)}
-                          className="w-16 h-1 bg-slate-200 rounded-lg accent-teal-600 cursor-pointer"
-                        />
-                        <span className="font-mono font-bold text-slate-700 text-[10px] w-7 text-right">
-                          {Math.round(mon.opacity * 100)}%
-                        </span>
                       </div>
                     </div>
-                  </div>
+                  ))
+                )}
+              </section>
 
-                  {/* Right Actions: Pinned, Min, Close */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Pin/Unpin Toggle */}
-                    <button
-                      onClick={() => setAlwaysOnTop(mon.id, !mon.alwaysOnTop)}
-                      className={cn(
-                        'px-3 py-1.5 text-xs font-semibold rounded-md shadow-xs flex items-center gap-1.5 transition-colors',
-                        mon.alwaysOnTop
-                          ? 'bg-teal-800 hover:bg-teal-900 text-white'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                      )}
-                      title={mon.alwaysOnTop ? 'Disable pin (Keep in background)' : 'Pin above other windows'}
-                    >
-                      <Pin size={11} className={mon.alwaysOnTop ? 'fill-current' : ''} />
-                      {mon.alwaysOnTop ? 'Pinned' : 'Background'}
-                    </button>
-
-                    {/* Minimize/Restore */}
-                    <button
-                      onClick={() => (mon.isMinimized ? restoreMonitor(mon.id) : minimizeMonitor(mon.id))}
-                      className="border border-slate-200 text-slate-700 hover:bg-slate-50 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors"
-                      title={mon.isMinimized ? 'Restore window' : 'Minimize window'}
-                    >
-                      {mon.isMinimized ? 'Restore' : '— Min'}
-                    </button>
-
-                    {/* Close */}
-                    <button
-                      onClick={() => closeMonitor(mon.id)}
-                      className="border border-rose-200 text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1"
-                      title="Close monitor"
-                    >
-                      <X size={11} /> Close
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
-          )}
-        </section>
+          </main>
+        </div>
+
       </div>
 
-      {/* Settings Dialog */}
+      {/* ========================================================= */}
+      {/* MACOS TRANSLUCENT HUD / NOTIFICATION TOAST                */}
+      {/* ========================================================= */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 pointer-events-none flex flex-col gap-2 animate-fade-in">
+          <div className="bg-[#262523]/90 backdrop-blur-xl text-[#FAF9F6] text-xs font-medium px-3.5 py-2 rounded-[9px] border border-white/15 shadow-[0_8px_24px_rgba(0,0,0,0.22)] flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span>{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* SETTINGS DIALOG (FOLLOWING EXACT MACOS DESIGN PATTERN)    */}
+      {/* ========================================================= */}
       <Dialog
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        title="Float-Space Settings"
-        description="Preferences and SQLite database management."
+        title="Float-Space Preferences"
+        description="Configure desktop overlay behavior and persistent SQLite storage."
         className="max-w-xl"
       >
         <div className="space-y-4 pt-1">
-          <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+          {/* macOS Segmented Tab Header */}
+          <div className="flex items-center p-0.5 bg-black/[0.05] rounded-[7px] border border-black/[0.05]">
             <button
               onClick={() => setActiveSettingsTab('appearance')}
               className={cn(
-                'px-3 py-1 rounded-md text-xs font-semibold transition-colors',
+                'flex-1 py-1 text-xs font-medium rounded-[5px] transition-all',
                 activeSettingsTab === 'appearance'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-white text-[#1D1D1F] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+                  : 'text-stone-500 hover:text-stone-800'
               )}
             >
-              Preferences
+              Monitor Preferences
             </button>
             <button
               onClick={() => setActiveSettingsTab('database')}
               className={cn(
-                'px-3 py-1 rounded-md text-xs font-semibold transition-colors',
+                'flex-1 py-1 text-xs font-medium rounded-[5px] transition-all',
                 activeSettingsTab === 'database'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-white text-[#1D1D1F] shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+                  : 'text-stone-500 hover:text-stone-800'
               )}
             >
               SQLite Database
@@ -548,47 +609,44 @@ export const AppShell: React.FC = () => {
           {activeSettingsTab === 'appearance' ? (
             <div className="space-y-4 text-xs">
               <div className="space-y-2">
-                <label className="font-semibold text-slate-700 block">Theme</label>
-                <div className="flex items-center gap-2">
-                  {(['light', 'dark', 'system'] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTheme(t)}
-                      className={cn(
-                        'px-3 py-1.5 rounded-md border text-xs font-medium capitalize transition-all',
-                        settings.theme === t
-                          ? 'border-teal-600 bg-teal-50 text-teal-800'
-                          : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                      )}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="font-semibold text-slate-700 block">Default Monitor Dimensions</label>
+                <label className="font-semibold text-stone-700 block text-[11px] uppercase tracking-wider">
+                  Default Floating Dimensions
+                </label>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[11px] text-slate-500 mb-1 block">Width (px)</span>
+                    <span className="text-[11px] text-stone-500 mb-1 block">Width (px)</span>
                     <input
                       type="number"
                       value={settings.defaultWidth || 480}
                       onChange={(e) => updateSettings({ defaultWidth: parseInt(e.target.value, 10) || 480 })}
-                      className="w-full h-8 px-2.5 bg-white border border-slate-200 rounded-md text-xs focus:outline-none focus:border-teal-500"
+                      className="w-full h-8 px-2.5 bg-white border border-black/[0.1] rounded-[6px] text-xs focus:outline-none focus:border-amber-600"
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] text-slate-500 mb-1 block">Height (px)</span>
+                    <span className="text-[11px] text-stone-500 mb-1 block">Height (px)</span>
                     <input
                       type="number"
                       value={settings.defaultHeight || 320}
                       onChange={(e) => updateSettings({ defaultHeight: parseInt(e.target.value, 10) || 320 })}
-                      className="w-full h-8 px-2.5 bg-white border border-slate-200 rounded-md text-xs focus:outline-none focus:border-teal-500"
+                      className="w-full h-8 px-2.5 bg-white border border-black/[0.1] rounded-[6px] text-xs focus:outline-none focus:border-amber-600"
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-black/[0.06]">
+                <label className="font-semibold text-stone-700 block text-[11px] uppercase tracking-wider">
+                  Default Behavior
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-stone-700">
+                  <input
+                    type="checkbox"
+                    checked={settings.defaultAlwaysOnTop ?? true}
+                    onChange={(e) => updateSettings({ defaultAlwaysOnTop: e.target.checked })}
+                    className="rounded border-stone-300 text-stone-900 focus:ring-amber-500/20"
+                  />
+                  <span>Always on Top (Pin floating monitors automatically)</span>
+                </label>
               </div>
             </div>
           ) : (

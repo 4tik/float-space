@@ -5,7 +5,6 @@ import {
   Unlock,
   ExternalLink,
   Sliders,
-  MoreHorizontal,
   Pause,
   Play,
   RotateCcw,
@@ -52,7 +51,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   const isWeb = config.displayMode === 'web';
 
   return (
-    <div className="h-8 w-full bg-white/95 text-slate-800 flex items-center justify-between px-2.5 border-b border-slate-200/90 select-none app-drag-region backdrop-blur-md shadow-sm">
+    <div className="h-8 w-full bg-[#F5F4F0]/90 backdrop-blur-xl text-[#1D1D1F] flex items-center justify-between px-2.5 border-b border-black/[0.08] select-none app-drag-region shrink-0">
       {/* Left: macOS Traffic Lights and title */}
       <div className="flex items-center gap-2 min-w-0">
         <MacTrafficLights
@@ -61,14 +60,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           onMinimize={onMinimize}
           onMaximize={onMaximize}
         />
-        <span className="text-[11px] font-semibold tracking-tight text-slate-800 truncate max-w-[130px]">
+        <span className="text-[11.5px] font-semibold tracking-[-0.01em] text-[#1D1D1F] truncate max-w-[140px]">
           {config.title}
         </span>
 
-        {/* Mode Indicator Badge (Strict distinction between Native Interactive & Live Visual Preview & Web) */}
+        {/* Mode Indicator Badge */}
         <div className="app-no-drag flex items-center ml-1">
           {isWeb ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-indigo-50 text-indigo-700 border-indigo-300">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-[4px] text-[9px] font-semibold tracking-wide uppercase border bg-indigo-500/10 text-indigo-800 border-indigo-600/20">
               <Globe size={9} className="text-indigo-600" />
               <span>Web</span>
             </span>
@@ -76,15 +75,15 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
             <button
               onClick={onToggleDisplayMode}
               className={cn(
-                'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase transition-colors border',
+                'inline-flex items-center gap-1 px-1.5 py-0.2 rounded-[4px] text-[9px] font-semibold tracking-wide uppercase transition-colors border cursor-pointer',
                 isEmbedded
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                  : 'bg-sky-50 text-sky-700 border-sky-300 hover:bg-sky-100'
+                  ? 'bg-emerald-500/10 text-emerald-800 border-emerald-600/20 hover:bg-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-900 border-amber-600/20 hover:bg-amber-500/20'
               )}
               title={
                 isEmbedded
-                  ? 'Mode: Native Interactive (Clicks, typing & scrolling active). Click to switch to Live Capture.'
-                  : 'Mode: Live Visual Preview (Non-interactive). Click to switch to Native Embedding.'
+                  ? 'Mode: Native Interactive. Click to switch to Live Capture.'
+                  : 'Mode: Live Visual Preview. Click to switch to Native Embedding.'
               }
             >
               {isEmbedded ? (
@@ -94,7 +93,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 </>
               ) : (
                 <>
-                  <Eye size={9} className="text-sky-600" />
+                  <Eye size={9} className="text-amber-600" />
                   <span>Preview</span>
                 </>
               )}
@@ -102,10 +101,10 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           ) : (
             <span
               className={cn(
-                'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border',
+                'inline-flex items-center gap-1 px-1.5 py-0.2 rounded-[4px] text-[9px] font-semibold tracking-wide uppercase border',
                 isEmbedded
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                  : 'bg-sky-50 text-sky-700 border-sky-300'
+                  ? 'bg-emerald-500/10 text-emerald-800 border-emerald-600/20'
+                  : 'bg-amber-500/10 text-amber-900 border-amber-600/20'
               )}
             >
               {isEmbedded ? (
@@ -115,7 +114,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 </>
               ) : (
                 <>
-                  <Eye size={9} className="text-sky-600" />
+                  <Eye size={9} className="text-amber-600" />
                   <span>Preview</span>
                 </>
               )}
@@ -124,24 +123,24 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         </div>
       </div>
 
-      {/* Right: Actions (all marked app-no-drag so clicks don't drag the window) */}
+      {/* Right: Actions */}
       <div className="flex items-center gap-1 app-no-drag relative">
-        {/* Play/Pause Live stream (only when in visual preview mode) */}
+        {/* Play/Pause Live stream */}
         {!isEmbedded && onTogglePause && (
           <button
             onClick={onTogglePause}
-            className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+            className="p-1 rounded-[5px] text-stone-500 hover:text-stone-800 hover:bg-black/[0.05] transition-colors cursor-pointer"
             title={isPaused ? 'Resume Capture' : 'Pause Capture'}
           >
             {isPaused ? <Play size={11} className="text-emerald-600" /> : <Pause size={11} />}
           </button>
         )}
 
-        {/* Reconnect (only when in visual preview mode) */}
+        {/* Reconnect */}
         {!isEmbedded && onReconnect && (
           <button
             onClick={onReconnect}
-            className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+            className="p-1 rounded-[5px] text-stone-500 hover:text-stone-800 hover:bg-black/[0.05] transition-colors cursor-pointer"
             title="Reconnect Stream"
           >
             <RotateCcw size={11} />
@@ -151,7 +150,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         {/* Focus Original App */}
         <button
           onClick={onFocusSource}
-          className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+          className="p-1 rounded-[5px] text-stone-500 hover:text-stone-800 hover:bg-black/[0.05] transition-colors cursor-pointer"
           title="Focus Original Application"
         >
           <ExternalLink size={11} />
@@ -161,56 +160,56 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         <div className="relative">
           <button
             onClick={() => setShowOpacityPopover(!showOpacityPopover)}
-            className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-            title={`Opacity: ${Math.round(config.opacity * 100)}%`}
+            className="p-1 rounded-[5px] text-stone-500 hover:text-stone-800 hover:bg-black/[0.05] transition-colors cursor-pointer"
+            title={`Opacity: ${Math.round((config.opacity ?? 1.0) * 100)}%`}
           >
             <Sliders size={11} />
           </button>
 
           {showOpacityPopover && (
-            <div className="absolute right-0 top-full mt-1.5 p-2 bg-white border border-slate-200 rounded-mac shadow-xl z-50 flex items-center gap-2 w-32">
+            <div className="absolute right-0 top-full mt-1.5 p-2 bg-[#FAF9F6] border border-black/[0.1] rounded-[8px] shadow-[0_8px_20px_rgba(0,0,0,0.18)] z-50 flex items-center gap-2 w-36">
               <input
                 type="range"
-                min="0.2"
+                min="0.25"
                 max="1.0"
                 step="0.05"
-                value={config.opacity}
+                value={config.opacity ?? 1.0}
                 onChange={(e) => onSetOpacity(parseFloat(e.target.value))}
-                className="w-full h-1 bg-slate-200 rounded accent-primary-500 cursor-pointer"
+                className="macos-slider w-full"
               />
-              <span className="text-[10px] text-slate-600 font-medium shrink-0">
-                {Math.round(config.opacity * 100)}%
+              <span className="font-mono text-[10px] text-stone-700 w-7 text-right">
+                {Math.round((config.opacity ?? 1.0) * 100)}%
               </span>
             </div>
           )}
         </div>
 
-        {/* Pin / Always on top */}
-        <button
-          onClick={onTogglePin}
-          className={cn(
-            'p-1 rounded transition-colors',
-            config.alwaysOnTop
-              ? 'text-primary-600 bg-primary-50 border border-primary-200'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-          )}
-          title={config.alwaysOnTop ? 'Unpin Always-on-Top' : 'Pin Always-on-Top'}
-        >
-          <Pin size={11} className={config.alwaysOnTop ? 'fill-current' : ''} />
-        </button>
-
-        {/* Lock window */}
+        {/* Lock window position */}
         <button
           onClick={onToggleLock}
           className={cn(
-            'p-1 rounded transition-colors',
+            'p-1 rounded-[5px] transition-colors cursor-pointer',
             config.isLocked
-              ? 'text-amber-600 bg-amber-50 border border-amber-200'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+              ? 'bg-[#262523] text-amber-400'
+              : 'text-stone-500 hover:text-stone-800 hover:bg-black/[0.05]'
           )}
-          title={config.isLocked ? 'Unlock Position & Size' : 'Lock Position & Size'}
+          title={config.isLocked ? 'Position Locked' : 'Lock Window Position'}
         >
           {config.isLocked ? <Lock size={11} /> : <Unlock size={11} />}
+        </button>
+
+        {/* Pin (Always on top) */}
+        <button
+          onClick={onTogglePin}
+          className={cn(
+            'p-1 rounded-[5px] transition-colors cursor-pointer',
+            config.alwaysOnTop
+              ? 'bg-[#262523] text-amber-400'
+              : 'text-stone-500 hover:text-stone-800 hover:bg-black/[0.05]'
+          )}
+          title={config.alwaysOnTop ? 'Pinned On Top' : 'Pin On Top'}
+        >
+          <Pin size={11} className={config.alwaysOnTop ? 'fill-current' : ''} />
         </button>
       </div>
     </div>
