@@ -84,7 +84,8 @@ if (!gotTheLock) {
           await Win32WindowEmbedder.getInstance().focusWindow(targetInfo.targetHwnd).catch(() => {});
         }
 
-        const sources = await desktopCapturer.getSources({ types: ['window', 'screen'], fetchWindowIcons: true });
+        // STRICTLY query ONLY 'window' sources - NEVER 'screen'
+        const sources = await desktopCapturer.getSources({ types: ['window'], fetchWindowIcons: true });
 
         let chosen: Electron.DesktopCapturerSource | undefined;
         if (targetInfo?.sourceId) {
@@ -100,10 +101,18 @@ if (!gotTheLock) {
             return sName === lower || sName.includes(lower) || lower.includes(sName);
           });
         }
-        if (!chosen) {
-          chosen = sources.find((s) => s.id.startsWith('screen:')) || sources[0];
+        // Strictly verify that chosen is a WINDOW source, NEVER screen
+        if (chosen && chosen.id.startsWith('window:')) {
+          callback({ video: chosen });
+        } else {
+          // If no specific match, find the first available window (never a screen)
+          const firstWindow = sources.find((s) => s.id.startsWith('window:'));
+          if (firstWindow) {
+            callback({ video: firstWindow });
+          } else {
+            callback({});
+          }
         }
-        callback({ video: chosen });
       } catch (err) {
         callback({});
       }

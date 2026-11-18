@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { AlertCircle, RefreshCw, VideoOff, ExternalLink, RotateCcw } from 'lucide-react';
 import { isElectron, ipcClient } from '../../services/ipc-client';
 import { cn } from '../../utils/cn';
@@ -32,6 +32,17 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
   const lastMoveTimeRef = useRef<number>(0);
   const forwardTarget = targetHwnd || (sourceId?.startsWith('window:') ? sourceId.split(':')[1] : undefined);
 
+  // Safe ref callback that binds stream immediately whenever the video DOM node mounts
+  const attachVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    if (el && streamRef.current) {
+      if (el.srcObject !== streamRef.current) {
+        el.srcObject = streamRef.current;
+      }
+      el.play().catch(() => { });
+    }
+  }, []);
+
   useEffect(() => {
     let isCancelled = false;
 
@@ -53,7 +64,8 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
             (w) =>
               (targetHwnd && (w.handle === targetHwnd || w.sourceId.includes(targetHwnd))) ||
               w.sourceId === sourceId ||
-              w.id === sourceId
+              w.id === sourceId ||
+              (w.title && sourceId && w.title.toLowerCase() === sourceId.toLowerCase())
           );
           if (match?.sourceId) {
             activeSourceId = match.sourceId;
@@ -63,6 +75,20 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
           }
         }
       } catch { }
+
+      // Normalize activeSourceId: Ensure it has window:<hwnd>:0 format
+      if (!activeSourceId?.startsWith('window:')) {
+        if (targetHwnd) {
+          activeSourceId = `window:${targetHwnd}:0`;
+        }
+      }
+
+      // Ensure target application window is restored if minimized so DWM has rendered frames
+      if (isElectron && forwardTarget) {
+        try {
+          await ipcClient.focusWindow(forwardTarget);
+        } catch { }
+      }
 
       // Clean up previous media stream tracks
       if (streamRef.current) {
@@ -78,20 +104,9 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
         let stream: MediaStream | null = null;
 
-        // 1. Try modern Electron getDisplayMedia first (handled by setDisplayMediaRequestHandler)
-        if (navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function') {
-          try {
-            stream = await navigator.mediaDevices.getDisplayMedia({
-              video: true,
-              audio: false,
-            });
-          } catch (e) {
-            console.warn('getDisplayMedia failed, falling back to getUserMedia:', e);
-          }
-        }
-
-        // 2. Fallback to getUserMedia if getDisplayMedia didn't acquire a stream
-        if (!stream && activeSourceId) {
+        // 1. Primary: Direct window capture via getUserMedia with chromeMediaSourceId
+        // This is strictly constrained by Chromium to capture ONLY the chosen window, NEVER the full desktop.
+        if (activeSourceId && activeSourceId.startsWith('window:')) {
           try {
             const constraints: any = {
               audio: false,
@@ -100,12 +115,14 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
                   chromeMediaSource: 'desktop',
                   chromeMediaSourceId: activeSourceId,
                   maxFrameRate: Math.max(frameRate, 30),
+                  maxWidth: 1920,
+                  maxHeight: 1080,
                 },
               },
             };
             stream = await navigator.mediaDevices.getUserMedia(constraints);
           } catch (gumErr) {
-            console.warn('getUserMedia with constraints failed, trying minimal constraints:', gumErr);
+            console.warn('getUserMedia with full constraints failed, trying minimal:', gumErr);
             try {
               stream = await navigator.mediaDevices.getUserMedia({
                 audio: false,
@@ -122,9 +139,32 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
           }
         }
 
+        // 2. Secondary fallback: getDisplayMedia (strictly locked to window in main process)
+        if (!stream && navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function') {
+          try {
+            stream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: false,
+            });
+          } catch (e) {
+            console.warn('getDisplayMedia fallback failed:', e);
+          }
+        }
+
         if (!stream) {
           throw new Error('Could not start video source');
         }
+
+        // Safety check: verify stream is NOT an entire desktop screen
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          const trackLabel = (videoTrack.label || '').toLowerCase();
+          if (trackLabel.startsWith('entire screen') || trackLabel.startsWith('screen ')) {
+            videoTrack.stop();
+            throw new Error('Desktop screen capture rejected. Float-Space monitors application windows only.');
+          }
+        }
+
         if (isCancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -132,7 +172,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
         streamRef.current = stream;
 
-        const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
           videoTrack.onended = () => {
             setError('Source application window closed.');
@@ -152,9 +191,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
           // If this is an early attempt, automatically restore window and retry
           if (retryCount < 2) {
             setRetryCount((prev) => prev + 1);
-            if (forwardTarget) {
-              ipcClient.focusWindow(forwardTarget).catch(() => { });
-            }
             if (forwardTarget) {
               ipcClient.focusWindow(forwardTarget).catch(() => { });
             }
@@ -181,6 +217,16 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
     };
   }, [sourceId, targetHwnd, frameRate, retryCount]);
 
+  // Ensure stream is bound to video element whenever loading finishes or video mounts
+  useEffect(() => {
+    if (videoRef.current && streamRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.play().catch(() => { });
+    }
+  }, [loading, retryCount]);
+
   // Handle stream pause/resume
   useEffect(() => {
     if (streamRef.current) {
@@ -202,7 +248,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
       }
     } catch { }
 
-    // Wait 400ms for OS DWM to restore the window and render its frame buffer
     setTimeout(() => {
       setRetryCount((c) => c + 1);
     }, 400);
@@ -336,41 +381,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
     }
   };
 
-  if (error && !fallbackImage) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-5 text-center select-none text-slate-700">
-        <AlertCircle size={26} className="text-amber-500 mb-2" />
-        <span className="text-xs font-semibold text-slate-800">{error}</span>
-        <span className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
-          If the application is minimized, restoring it will immediately activate the live feed.
-        </span>
-        <div className="flex items-center gap-2 mt-4">
-          <button
-            onClick={handleFocusAndRetry}
-            className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-xs font-semibold rounded-mac shadow-sm inline-flex items-center gap-1.5 transition-all"
-          >
-            <ExternalLink size={12} /> Focus Application & Restore
-          </button>
-          <button
-            onClick={() => setRetryCount((c) => c + 1)}
-            className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-medium rounded-mac shadow-sm inline-flex items-center gap-1.5 transition-all"
-          >
-            <RotateCcw size={12} /> Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading && !fallbackImage) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-600 select-none">
-        <RefreshCw size={22} className="animate-spin mb-2 text-primary-500" />
-        <span className="text-xs font-medium">Connecting High-DPI Stream...</span>
-      </div>
-    );
-  }
-
   if (!sourceId || !isElectron) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-700 p-4 select-none">
@@ -379,7 +389,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         </div>
         <div className="text-xs font-semibold">Active Floating Monitor</div>
         <div className="text-[10px] text-slate-500 mt-1 text-center max-w-[220px]">
-          Drag and drop any running window to display it here.
+          Select any running application to display it here.
         </div>
       </div>
     );
@@ -400,46 +410,70 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
       title="Click, scroll with mouse wheel, or type on keyboard to interact"
     >
       {/* Fallback snapshot image while stream is connecting or if minimized */}
-      {fallbackImage && !isPlaying && (
+      {fallbackImage && (
         <img
           src={fallbackImage}
           alt=""
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          className={cn(
+            "absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-200",
+            isPlaying ? "opacity-0" : "opacity-100"
+          )}
         />
       )}
 
-      {/* Primary hardware-accelerated video stream */}
+      {/* Primary hardware-accelerated video stream (ALWAYS in the DOM) */}
       <video
-        ref={videoRef}
+        ref={attachVideoRef}
         autoPlay
         playsInline
         muted
-        onLoadedMetadata={() => videoRef.current?.play().catch(() => { })}
+        onLoadedMetadata={() => {
+          videoRef.current?.play().catch(() => { });
+          setIsPlaying(true);
+        }}
+        onLoadedData={() => setIsPlaying(true)}
+        onCanPlay={() => setIsPlaying(true)}
         onPlaying={() => setIsPlaying(true)}
-        className={cn(
-          "w-full h-full object-contain pointer-events-none relative z-10 transition-opacity duration-150",
-          isPlaying ? "opacity-100" : "opacity-0"
-        )}
+        className="w-full h-full object-contain pointer-events-none relative z-10"
         style={{
           imageRendering: '-webkit-optimize-contrast',
         }}
       />
 
-      {error && fallbackImage && (
-        <div className="absolute top-2 inset-x-2 z-30 flex items-center justify-between px-2.5 py-1.5 bg-amber-50/95 border border-amber-300 rounded shadow text-[10px] text-amber-900">
-          <span className="flex items-center gap-1 font-medium">
-            <AlertCircle size={11} className="text-amber-600" />
-            Window minimized. Snapshot shown.
-          </span>
-          <button
-            onClick={handleFocusAndRetry}
-            className="px-2 py-0.5 bg-amber-600 text-white rounded font-medium hover:bg-amber-700 transition-colors"
-          >
-            Restore Live Feed
-          </button>
+      {/* Loading Overlay (non-blocking) */}
+      {loading && !fallbackImage && (
+        <div className="absolute inset-0 bg-slate-50/90 backdrop-blur-xs flex flex-col items-center justify-center text-slate-600 z-20 select-none">
+          <RefreshCw size={22} className="animate-spin mb-2 text-teal-600" />
+          <span className="text-xs font-medium">Connecting High-DPI Stream...</span>
         </div>
       )}
 
+      {/* Error Overlay */}
+      {error && (
+        <div className="absolute inset-0 bg-slate-50/95 flex flex-col items-center justify-center p-5 text-center select-none text-slate-700 z-30">
+          <AlertCircle size={26} className="text-amber-500 mb-2" />
+          <span className="text-xs font-semibold text-slate-800">{error}</span>
+          <span className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
+            If the application is minimized, click below to restore its live frame buffer.
+          </span>
+          <div className="flex items-center gap-2 mt-4">
+            <button
+              onClick={handleFocusAndRetry}
+              className="px-3.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold rounded-md shadow-xs inline-flex items-center gap-1.5 transition-all"
+            >
+              <ExternalLink size={12} /> Focus Application & Restore
+            </button>
+            <button
+              onClick={() => setRetryCount((c) => c + 1)}
+              className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-medium rounded-md shadow-xs inline-flex items-center gap-1.5 transition-all"
+            >
+              <RotateCcw size={12} /> Retry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paused Overlay */}
       {isPaused && (
         <div className="absolute inset-0 bg-white/75 backdrop-blur-sm flex items-center justify-center z-20">
           <span className="text-xs font-medium text-slate-800 px-3 py-1 rounded bg-white shadow border border-slate-200">
