@@ -13,6 +13,7 @@ interface FloatingMonitorWindowProps {
 export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ windowId }) => {
   const [config, setConfig] = useState<FloatingWindowConfig | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [captureKey, setCaptureKey] = useState(0);
 
   useEffect(() => {
     // Fetch initial config
@@ -76,6 +77,7 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
           onToggleDisplayMode={handleToggleDisplayMode}
           isPaused={isPaused}
           onTogglePause={() => setIsPaused(!isPaused)}
+          onReconnect={() => setCaptureKey((k) => k + 1)}
         />
       )}
 
@@ -103,6 +105,7 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
           // Live High-Resolution Preview with Input Forwarding (Clicks, Scrolling, Typing)
           <div className="flex-1 w-full h-full relative flex flex-col">
             <LiveCapturePreview
+              key={captureKey}
               sourceId={config.sourceWindowId}
               targetHwnd={config.targetHwnd}
               frameRate={config.captureFrameRate}

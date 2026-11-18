@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { AlertCircle, RefreshCw, VideoOff, ExternalLink } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { AlertCircle, RefreshCw, VideoOff, ExternalLink, RotateCcw } from 'lucide-react';
 import { isElectron, ipcClient } from '../../services/ipc-client';
 import { cn } from '../../utils/cn';
 
@@ -27,23 +27,13 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [fallbackImage, setFallbackImage] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const lastMoveTimeRef = useRef<number>(0);
+  const forwardTarget = targetHwnd || (sourceId?.startsWith('window:') ? sourceId.split(':')[1] : undefined);
 
-  // Load thumbnail snapshot immediately while stream negotiates
   useEffect(() => {
     let isCancelled = false;
-
-    async function loadFallbackThumbnail() {
-      if (!sourceId || !isElectron) return;
-      try {
-        const windows = await ipcClient.getRunningWindows();
-        const match = windows.find((w) => w.sourceId === sourceId || w.id === sourceId || w.handle === targetHwnd);
-        if (match?.thumbnailDataUrl && !isCancelled) {
-          setFallbackImage(match.thumbnailDataUrl);
-        }
-      } catch { }
-    }
 
     async function startCapture() {
       if (!sourceId) {
@@ -53,8 +43,28 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
       setError(null);
       setLoading(true);
-      loadFallbackThumbnail();
 
+      // 1. Resolve fresh sourceId and thumbnail from main process
+      let activeSourceId = sourceId;
+      try {
+        if (isElectron) {
+          const windows = await ipcClient.getRunningWindows();
+          const match = windows.find(
+            (w) =>
+              (targetHwnd && (w.handle === targetHwnd || w.sourceId.includes(targetHwnd))) ||
+              w.sourceId === sourceId ||
+              w.id === sourceId
+          );
+          if (match?.sourceId) {
+            activeSourceId = match.sourceId;
+          }
+          if (match?.thumbnailDataUrl && !isCancelled) {
+            setFallbackImage(match.thumbnailDataUrl);
+          }
+        }
+      } catch { }
+
+      // Clean up previous media stream tracks
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
@@ -66,23 +76,55 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
           return;
         }
 
-        // Safe resolution constraints that support everything from small dialogs to 4K displays
-        const constraints: any = {
-          audio: false,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: sourceId,
-              minWidth: 320,
-              maxWidth: 3840,
-              minHeight: 240,
-              maxHeight: 2160,
-              maxFrameRate: Math.max(frameRate, 30),
-            },
-          },
-        };
+        let stream: MediaStream | null = null;
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // 1. Try modern Electron getDisplayMedia first (handled by setDisplayMediaRequestHandler)
+        if (navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function') {
+          try {
+            stream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: false,
+            });
+          } catch (e) {
+            console.warn('getDisplayMedia failed, falling back to getUserMedia:', e);
+          }
+        }
+
+        // 2. Fallback to getUserMedia if getDisplayMedia didn't acquire a stream
+        if (!stream && activeSourceId) {
+          try {
+            const constraints: any = {
+              audio: false,
+              video: {
+                mandatory: {
+                  chromeMediaSource: 'desktop',
+                  chromeMediaSourceId: activeSourceId,
+                  maxFrameRate: Math.max(frameRate, 30),
+                },
+              },
+            };
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+          } catch (gumErr) {
+            console.warn('getUserMedia with constraints failed, trying minimal constraints:', gumErr);
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                audio: false,
+                video: {
+                  mandatory: {
+                    chromeMediaSource: 'desktop',
+                    chromeMediaSourceId: activeSourceId,
+                  },
+                } as any,
+              });
+            } catch (minErr) {
+              console.warn('Minimal getUserMedia failed:', minErr);
+            }
+          }
+        }
+
+        if (!stream) {
+          throw new Error('Could not start video source');
+        }
         if (isCancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -106,10 +148,23 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         setLoading(false);
       } catch (err: any) {
         if (!isCancelled) {
-          console.warn('WebRTC stream capture error, using fallback thumbnail:', err);
-          if (!fallbackImage) {
-            setError(err.message || 'Connecting to application window...');
+          console.warn('WebRTC stream capture error:', err);
+          // If this is an early attempt, automatically restore window and retry
+          if (retryCount < 2) {
+            setRetryCount((prev) => prev + 1);
+            if (forwardTarget) {
+              ipcClient.focusWindow(forwardTarget).catch(() => { });
+            }
+            if (forwardTarget) {
+              ipcClient.focusWindow(forwardTarget).catch(() => {});
+            }
+            setTimeout(() => {
+              if (!isCancelled) startCapture();
+            }, 600);
+            return;
           }
+
+          setError(err.message || 'Could not start video source');
           setLoading(false);
         }
       }
@@ -124,7 +179,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         streamRef.current = null;
       }
     };
-  }, [sourceId, targetHwnd, frameRate]);
+  }, [sourceId, targetHwnd, frameRate, retryCount]);
 
   // Handle stream pause/resume
   useEffect(() => {
@@ -134,6 +189,24 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
       });
     }
   }, [isPaused]);
+
+  // Handle user clicking to focus & restore the application, then reconnecting the stream
+  const handleFocusAndRetry = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      if (forwardTarget) {
+        await ipcClient.focusWindow(forwardTarget);
+      } else if (sourceId) {
+        await ipcClient.focusWindow(sourceId);
+      }
+    } catch { }
+
+    // Wait 400ms for OS DWM to restore the window and render its frame buffer
+    setTimeout(() => {
+      setRetryCount((c) => c + 1);
+    }, 400);
+  };
 
   // Calculate normalized coordinates in the rendered video rect
   const getNormalizedCoords = (clientX: number, clientY: number) => {
@@ -172,8 +245,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
       normY: Math.max(0, Math.min(1, mouseY / renderH)),
     };
   };
-
-  const forwardTarget = targetHwnd || (sourceId?.startsWith('window:') ? sourceId.split(':')[1] : undefined);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     containerRef.current?.focus();
@@ -238,7 +309,6 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!forwardTarget) return;
     const now = performance.now();
-    // Throttle move events to ~30fps (33ms) to prevent event saturation
     if (now - lastMoveTimeRef.current < 33) return;
     lastMoveTimeRef.current = now;
 
@@ -268,27 +338,33 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
   if (error && !fallbackImage) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 p-4 text-center select-none text-slate-700">
-        <AlertCircle size={24} className="text-amber-500 mb-2" />
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-5 text-center select-none text-slate-700">
+        <AlertCircle size={26} className="text-amber-500 mb-2" />
         <span className="text-xs font-semibold text-slate-800">{error}</span>
-        <span className="text-[10px] text-slate-500 mt-1 max-w-xs">
-          If the application is minimized, click Focus Original in the bottom bar to restore it.
+        <span className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
+          If the application is minimized, restoring it will immediately activate the live feed.
         </span>
-        {sourceId && (
+        <div className="flex items-center gap-2 mt-4">
           <button
-            onClick={() => ipcClient.focusWindow(sourceId)}
-            className="mt-3 px-3 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-medium rounded shadow-sm inline-flex items-center gap-1.5"
+            onClick={handleFocusAndRetry}
+            className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-xs font-semibold rounded-mac shadow-sm inline-flex items-center gap-1.5 transition-all"
           >
-            <ExternalLink size={12} /> Focus Application
+            <ExternalLink size={12} /> Focus Application & Restore
           </button>
-        )}
+          <button
+            onClick={() => setRetryCount((c) => c + 1)}
+            className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-medium rounded-mac shadow-sm inline-flex items-center gap-1.5 transition-all"
+          >
+            <RotateCcw size={12} /> Retry
+          </button>
+        </div>
       </div>
     );
   }
 
   if (loading && !fallbackImage) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-600 select-none">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-600 select-none">
         <RefreshCw size={22} className="animate-spin mb-2 text-primary-500" />
         <span className="text-xs font-medium">Connecting High-DPI Stream...</span>
       </div>
@@ -297,7 +373,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
   if (!sourceId || !isElectron) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-700 p-4 select-none">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-700 p-4 select-none">
         <div className="p-3 rounded-full bg-primary-500/10 text-primary-600 mb-2">
           <VideoOff size={22} />
         </div>
@@ -320,10 +396,10 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
       onWheel={handleWheel}
       onMouseMove={handleMouseMove}
       onKeyDown={handleKeyDown}
-      className="w-full h-full bg-slate-100 relative flex items-center justify-center overflow-hidden outline-none cursor-default select-none"
+      className="w-full h-full bg-slate-50 relative flex items-center justify-center overflow-hidden outline-none cursor-default select-none"
       title="Click, scroll with mouse wheel, or type on keyboard to interact"
     >
-      {/* Fallback image if WebRTC stream is buffering or negotiating */}
+      {/* Fallback snapshot image while stream is connecting or if minimized */}
       {fallbackImage && !isPlaying && (
         <img
           src={fallbackImage}
@@ -332,7 +408,7 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
         />
       )}
 
-      {/* Primary hardware-accelerated high-resolution video stream */}
+      {/* Primary hardware-accelerated video stream */}
       <video
         ref={videoRef}
         autoPlay
@@ -348,6 +424,21 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
           imageRendering: '-webkit-optimize-contrast',
         }}
       />
+
+      {error && fallbackImage && (
+        <div className="absolute top-2 inset-x-2 z-30 flex items-center justify-between px-2.5 py-1.5 bg-amber-50/95 border border-amber-300 rounded shadow text-[10px] text-amber-900">
+          <span className="flex items-center gap-1 font-medium">
+            <AlertCircle size={11} className="text-amber-600" />
+            Window minimized. Snapshot shown.
+          </span>
+          <button
+            onClick={handleFocusAndRetry}
+            className="px-2 py-0.5 bg-amber-600 text-white rounded font-medium hover:bg-amber-700 transition-colors"
+          >
+            Restore Live Feed
+          </button>
+        </div>
+      )}
 
       {isPaused && (
         <div className="absolute inset-0 bg-white/75 backdrop-blur-sm flex items-center justify-center z-20">

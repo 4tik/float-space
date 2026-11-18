@@ -157,6 +157,31 @@ export class WindowsApplicationAdapter implements IApplicationAdapter {
   }
 
   public async focusWindow(windowId: string, processId?: number): Promise<boolean> {
+    const hwnd = windowId.startsWith('window:')
+      ? windowId.split(':')[1]
+      : windowId.replace(/^win-/, '');
+
+    if (hwnd && hwnd !== '0' && /^\d+$/.test(hwnd)) {
+      try {
+        const { Win32WindowEmbedder } = require('./win32-embed');
+        const res = await Win32WindowEmbedder.getInstance().focusWindow(hwnd);
+        if (res) return true;
+      } catch {}
+
+      try {
+        const ps = `
+          $sig = '[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);'
+          Add-Type -MemberDefinition $sig -Name DirectWin32 -Namespace Native -ErrorAction SilentlyContinue
+          [IntPtr]$target = [IntPtr]${hwnd}
+          [Native.DirectWin32]::ShowWindow($target, 9)
+          [Native.DirectWin32]::SetForegroundWindow($target)
+          [Native.DirectWin32]::BringWindowToTop($target)
+        `;
+        await execAsync(`powershell -NoProfile -Command "${ps.replace(/\n/g, ' ')}"`);
+        return true;
+      } catch {}
+    }
+
     if (!processId) {
       const pidMatch = windowId.match(/\d+/);
       if (pidMatch) processId = parseInt(pidMatch[0], 10);

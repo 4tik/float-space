@@ -8,6 +8,9 @@
   "compression": "maximum",
   "electronLanguages": ["en-US"],
   "asar": true,
+  "asarUnpack": [
+    "dist/electron/native/windows/scripts/**/*"
+  ],
   "files": [
     "dist/**/*",
     "!dist/**/*.map",

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen, session, desktopCapturer } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, session, desktopCapturer, webContents } from 'electron';
 import * as path from 'path';
 import { DatabaseService } from '../database/db';
 import { FloatingWindowManager } from './floating-window-manager';
@@ -8,6 +8,9 @@ import { createSystemTray } from './tray';
 import { Win32WindowEmbedder } from '../native/windows/win32-embed';
 import { LoggerService } from '../services/logger.service';
 import { IPC_CHANNELS } from '../ipc/channels';
+
+// Allow getDisplayMedia without user gesture in floating monitors
+app.commandLine.appendSwitch('disable-features', 'DisplayMediaRequiresUserAction');
 
 const logger = LoggerService.getInstance();
 let mainWindow: BrowserWindow | null = null;
@@ -33,10 +36,77 @@ if (!gotTheLock) {
       callback(true);
     });
     session.defaultSession.setPermissionCheckHandler(() => true);
-    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-      desktopCapturer.getSources({ types: ['window', 'screen'] }).then((sources) => {
-        callback({ video: sources[0] });
-      }).catch(() => callback({}));
+    session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+      try {
+        let senderWebContents: Electron.WebContents | undefined;
+        if (request.frame) {
+          try {
+            senderWebContents = (webContents as any).fromFrame?.(request.frame);
+          } catch {}
+        }
+        if (!senderWebContents && request.frame) {
+          const allWins = BrowserWindow.getAllWindows();
+          const found = allWins.find((w) => {
+            try {
+              return w.webContents.mainFrame === request.frame;
+            } catch {
+              return false;
+            }
+          });
+          if (found) senderWebContents = found.webContents;
+        }
+
+        // Extract windowId from query params in frame URL
+        let windowId: string | undefined;
+        const frameUrl = request.frame?.url || '';
+        const match = frameUrl.match(/windowId=([^&]+)/);
+        if (match) {
+          windowId = decodeURIComponent(match[1]);
+        }
+
+        let targetInfo: { sourceId?: string; targetHwnd?: string; title?: string } | undefined;
+        if (windowId) {
+          const cfg = FloatingWindowManager.getInstance().getConfig(windowId);
+          if (cfg) {
+            targetInfo = {
+              sourceId: cfg.sourceWindowId,
+              targetHwnd: cfg.targetHwnd,
+              title: cfg.title,
+            };
+          }
+        }
+        if (!targetInfo && senderWebContents) {
+          targetInfo = FloatingWindowManager.getInstance().getTargetForWebContents(senderWebContents.id);
+        }
+
+        // Restore target application if minimized so DWM renders frames
+        if (targetInfo?.targetHwnd && process.platform === 'win32') {
+          await Win32WindowEmbedder.getInstance().focusWindow(targetInfo.targetHwnd).catch(() => {});
+        }
+
+        const sources = await desktopCapturer.getSources({ types: ['window', 'screen'], fetchWindowIcons: true });
+
+        let chosen: Electron.DesktopCapturerSource | undefined;
+        if (targetInfo?.sourceId) {
+          chosen = sources.find((s) => s.id === targetInfo!.sourceId);
+        }
+        if (!chosen && targetInfo?.targetHwnd) {
+          chosen = sources.find((s) => s.id.split(':')[1] === targetInfo!.targetHwnd);
+        }
+        if (!chosen && targetInfo?.title) {
+          const lower = targetInfo.title.toLowerCase().trim();
+          chosen = sources.find((s) => {
+            const sName = s.name.toLowerCase().trim();
+            return sName === lower || sName.includes(lower) || lower.includes(sName);
+          });
+        }
+        if (!chosen) {
+          chosen = sources.find((s) => s.id.startsWith('screen:')) || sources[0];
+        }
+        callback({ video: chosen });
+      } catch (err) {
+        callback({});
+      }
     });
 
     // 1. Initialize SQLite Database

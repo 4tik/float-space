@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as readline from 'readline';
 import { promisify } from 'util';
 import { LoggerService } from '../../services/logger.service';
+import { WIN32_BRIDGE_SCRIPT } from './win32-bridge-source';
 
 function getElectronApp(): any {
   try {
@@ -63,10 +64,18 @@ export class Win32WindowEmbedder {
       return this.scriptPath;
     }
 
-    const localPath = path.join(__dirname, 'scripts', 'win32-bridge.ps1');
-    if (fs.existsSync(localPath)) {
-      this.scriptPath = localPath;
-      return this.scriptPath;
+    const candidatePaths = [
+      path.join(__dirname, 'scripts', 'win32-bridge.ps1'),
+      path.join(__dirname, 'win32-bridge.ps1'),
+      path.join(process.cwd(), 'electron', 'native', 'windows', 'scripts', 'win32-bridge.ps1'),
+      path.join(process.cwd(), 'dist', 'electron', 'native', 'windows', 'scripts', 'win32-bridge.ps1'),
+    ];
+
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        this.scriptPath = p;
+        return this.scriptPath;
+      }
     }
 
     try {
@@ -77,14 +86,12 @@ export class Win32WindowEmbedder {
         fs.mkdirSync(targetDir, { recursive: true });
       }
       const targetFile = path.join(targetDir, 'win32-bridge.ps1');
-      if (fs.existsSync(localPath)) {
-        fs.copyFileSync(localPath, targetFile);
-      }
-      this.scriptPath = fs.existsSync(targetFile) ? targetFile : localPath;
+      fs.writeFileSync(targetFile, WIN32_BRIDGE_SCRIPT, 'utf8');
+      this.scriptPath = targetFile;
       return this.scriptPath;
     } catch (err) {
       this.logger.error('Win32WindowEmbedder', 'Failed to resolve win32-bridge.ps1', err);
-      return localPath;
+      return candidatePaths[0];
     }
   }
 

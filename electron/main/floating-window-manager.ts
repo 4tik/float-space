@@ -12,6 +12,7 @@ export class FloatingWindowManager {
   private static instance: FloatingWindowManager;
   private windows: Map<string, BrowserWindow> = new Map();
   private configs: Map<string, FloatingWindowConfig> = new Map();
+  private webContentsToTarget: Map<number, { sourceId?: string; targetHwnd?: string; title?: string }> = new Map();
   private db = DatabaseService.getInstance();
   private displayService = DisplayService.getInstance();
   private logger = LoggerService.getInstance();
@@ -118,6 +119,13 @@ export class FloatingWindowManager {
     config.width = clamped.width;
     config.height = clamped.height;
 
+    // Ensure target application window is restored if minimized so DWM renders its frames
+    if (config.targetHwnd && process.platform === 'win32') {
+      try {
+        await Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd);
+      } catch {}
+    }
+
     // Create Electron BrowserWindow
     const win = new BrowserWindow({
       x: config.positionX,
@@ -144,6 +152,11 @@ export class FloatingWindowManager {
     });
 
     win.setOpacity(config.opacity);
+    this.webContentsToTarget.set(win.webContents.id, {
+      sourceId: config.sourceWindowId,
+      targetHwnd: config.targetHwnd,
+      title: config.title,
+    });
 
     // Load renderer with windowId
     const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
@@ -238,6 +251,7 @@ export class FloatingWindowManager {
     });
 
     win.on('closed', () => {
+      this.webContentsToTarget.delete(win.webContents.id);
       if (config.targetHwnd && process.platform === 'win32') {
         Win32WindowEmbedder.getInstance().detach(config.targetHwnd);
       }
@@ -268,6 +282,11 @@ export class FloatingWindowManager {
 
   public getConfig(id: string): FloatingWindowConfig | undefined {
     return this.configs.get(id);
+  }
+
+  public getTargetForWebContents(webContentsId?: number): { sourceId?: string; targetHwnd?: string; title?: string } | undefined {
+    if (!webContentsId) return undefined;
+    return this.webContentsToTarget.get(webContentsId);
   }
 
   public getAllConfigs(): FloatingWindowConfig[] {
