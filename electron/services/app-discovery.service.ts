@@ -1,4 +1,4 @@
-import { desktopCapturer } from 'electron';
+import { desktopCapturer, BrowserWindow } from 'electron';
 import { IApplicationAdapter, PlatformCapabilities } from '../native/interfaces/application-adapter.interface';
 import { WindowsApplicationAdapter } from '../native/windows/windows-adapter';
 import { MacOSApplicationAdapter } from '../native/macos/macos-adapter';
@@ -49,7 +49,29 @@ export class AppDiscoveryService {
 
   public async getRunningWindows(): Promise<RunningWindowInfo[]> {
     try {
-      // 1. Get desktop capturer sources which gives native OS window names, icons & thumbnails
+      // 1. Identify all BrowserWindow native handles and PID belonging to Float-Space
+      const floatSpaceHwnds = new Set<string>();
+      const currentPid = process.pid;
+
+      try {
+        const allBrowserWindows = BrowserWindow.getAllWindows();
+        for (const win of allBrowserWindows) {
+          if (!win.isDestroyed()) {
+            try {
+              const rawHandle = win.getNativeWindowHandle();
+              // Support 32-bit and 64-bit integer representations
+              const hwnd32 = rawHandle.readUInt32LE(0).toString();
+              const hwnd64 = rawHandle.readBigUInt64LE(0).toString();
+              floatSpaceHwnds.add(hwnd32);
+              floatSpaceHwnds.add(hwnd64);
+            } catch {}
+          }
+        }
+      } catch (err) {
+        this.logger.warn('AppDiscoveryService', 'Failed to query Electron BrowserWindow handles', err);
+      }
+
+      // 2. Fetch desktopCapturer sources (provides native window title, real app icon & thumbnail)
       let capturerSources: Electron.DesktopCapturerSource[] = [];
       try {
         capturerSources = await desktopCapturer.getSources({
@@ -61,50 +83,119 @@ export class AppDiscoveryService {
         this.logger.warn('AppDiscoveryService', 'desktopCapturer not available or failed', e);
       }
 
-      // 2. Get process-level running window info from native platform adapter
+      // 3. Fetch native OS process-level running window info
       const adapterWindows = await this.adapter.getRunningWindows();
+
+      // Map indexed by unique HWND (or sourceId if HWND is unavailable)
       const resultMap = new Map<string, RunningWindowInfo>();
 
-      // Integrate desktopCapturer sources (which are guaranteed to be capturable)
+      // System / utility window titles to ignore
+      const systemTitles = new Set([
+        'program manager',
+        'default ime',
+        'msctfime ui',
+        'windows input experience',
+        'settings',
+        'nvidia geforce overlay',
+        'task host window',
+      ]);
+
+      // Integrate desktopCapturer sources
       for (const source of capturerSources) {
-        // Skip our own floating windows from becoming capture sources of themselves
-        if (source.name.includes('Floating Monitor')) continue;
+        const title = source.name ? source.name.trim() : '';
+        if (!title) continue;
+
+        const lowerTitle = title.toLowerCase();
+        if (systemTitles.has(lowerTitle)) continue;
+
+        // Extract HWND from source ID format: "window:<hwnd>:0"
+        const idParts = source.id.split(':');
+        const hwnd = idParts.length >= 2 ? idParts[1] : '';
+
+        // Exclude all windows belonging to Float-Space
+        if (hwnd && floatSpaceHwnds.has(hwnd)) continue;
+        if (lowerTitle === 'float-space' || lowerTitle.startsWith('float-space') || lowerTitle.includes('floating monitor')) continue;
+
+        // Clean app name extraction from title
+        let appName = 'Application';
+        if (title.includes(' - ')) {
+          appName = title.split(' - ').pop()?.trim() || 'Application';
+        }
 
         const iconUrl = source.appIcon ? source.appIcon.toDataURL() : undefined;
         const thumbUrl = source.thumbnail ? source.thumbnail.toDataURL() : undefined;
 
-        resultMap.set(source.id, {
-          id: source.id,
+        const key = hwnd || source.id;
+        resultMap.set(key, {
+          id: `win-${key}`,
           sourceId: source.id,
-          title: source.name,
-          appName: source.name.split(' - ').pop() || source.name,
+          title,
+          appName,
           processId: 0,
+          handle: hwnd || undefined,
           iconDataUrl: iconUrl,
           thumbnailDataUrl: thumbUrl,
           isMinimized: false,
         });
       }
 
-      // Merge native adapter windows
+      // Merge native platform adapter windows (adding exact PID, executable path, and handles)
       for (const win of adapterWindows) {
-        // Check if an existing capturer source matches the window title
-        let matched = false;
-        for (const [key, existing] of resultMap.entries()) {
-          if (existing.title.toLowerCase().includes(win.title.toLowerCase()) || win.title.toLowerCase().includes(existing.title.toLowerCase())) {
-            existing.processId = win.processId;
-            existing.executablePath = win.executablePath;
-            existing.handle = win.handle;
-            matched = true;
-            break;
-          }
-        }
+        // Exclude Float-Space process and system windows
+        if (win.processId === currentPid) continue;
+        const lowerTitle = win.title.toLowerCase().trim();
+        if (lowerTitle === 'float-space' || lowerTitle.startsWith('float-space') || lowerTitle.includes('floating monitor')) continue;
+        if (systemTitles.has(lowerTitle)) continue;
 
-        if (!matched && !resultMap.has(win.sourceId)) {
-          resultMap.set(win.id, win);
+        const key = win.handle || win.sourceId;
+
+        if (resultMap.has(key)) {
+          // Exact HWND match: enrich capturer source with exact PID & executable path
+          const existing = resultMap.get(key)!;
+          existing.processId = win.processId || existing.processId;
+          existing.executablePath = win.executablePath || existing.executablePath;
+          existing.handle = win.handle || existing.handle;
+          if (win.appName && win.appName !== 'Application') {
+            existing.appName = win.appName;
+          }
+        } else {
+          // Check for matching title in case HWND string format differed
+          let matchedKey: string | null = null;
+          for (const [k, existing] of resultMap.entries()) {
+            if (
+              existing.title.toLowerCase() === lowerTitle ||
+              (existing.title.length > 5 && lowerTitle.includes(existing.title.toLowerCase())) ||
+              (lowerTitle.length > 5 && existing.title.toLowerCase().includes(lowerTitle))
+            ) {
+              matchedKey = k;
+              break;
+            }
+          }
+
+          if (matchedKey) {
+            const existing = resultMap.get(matchedKey)!;
+            existing.processId = win.processId || existing.processId;
+            existing.executablePath = win.executablePath || existing.executablePath;
+            existing.handle = win.handle || existing.handle;
+            if (win.appName && win.appName !== 'Application') {
+              existing.appName = win.appName;
+            }
+          } else {
+            // New window not captured by desktopCapturer
+            resultMap.set(key, win);
+          }
         }
       }
 
-      return Array.from(resultMap.values());
+      // Exclude any window that belongs to Float-Space process ID
+      const results: RunningWindowInfo[] = [];
+      for (const win of resultMap.values()) {
+        if (win.processId === currentPid) continue;
+        if (win.handle && floatSpaceHwnds.has(win.handle)) continue;
+        results.push(win);
+      }
+
+      return results.sort((a, b) => a.title.localeCompare(b.title));
     } catch (err: any) {
       this.logger.error('AppDiscoveryService', 'Failed to retrieve running windows', err);
       return [];

@@ -60,7 +60,16 @@ export const AppShell: React.FC = () => {
   );
 
   const handleCreateMonitor = async (win: RunningWindowInfo) => {
-    // Default to high-performance live visual capture to ensure immediate, reliable preview without blank screens
+    // If the monitor already exists, bring it forward instead of creating a duplicate
+    const existing = monitors.find(
+      (m) => (win.handle && m.targetHwnd === win.handle) || m.sourceWindowId === win.sourceId
+    );
+    if (existing) {
+      focusSource(existing.id);
+      return;
+    }
+
+    // Default to interactive mirror with real-time low latency input forwarding
     await createMonitor({
       title: win.title,
       sourceWindowId: win.sourceId,
@@ -81,6 +90,14 @@ export const AppShell: React.FC = () => {
       const raw = e.dataTransfer.getData('application/json');
       if (raw) {
         const item = JSON.parse(raw);
+        const existing = monitors.find(
+          (m) => (item.handle && m.targetHwnd === item.handle) || m.sourceWindowId === item.sourceId
+        );
+        if (existing) {
+          focusSource(existing.id);
+          return;
+        }
+
         await createMonitor({
           title: item.title,
           sourceWindowId: item.sourceId,
@@ -167,55 +184,81 @@ export const AppShell: React.FC = () => {
                 <p className="text-[10px] text-slate-500 mt-1">Make sure the application is open and visible on your desktop.</p>
               </div>
             ) : (
-              filteredWindows.map((win) => (
-                <div
-                  key={win.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('application/json', JSON.stringify(win));
-                    e.dataTransfer.effectAllowed = 'copy';
-                  }}
-                  className="group p-2.5 rounded-mac border border-slate-200 bg-white hover:border-primary-500/40 hover:bg-primary-50/50 cursor-grab active:cursor-grabbing transition-all flex items-center justify-between gap-2 shadow-sm"
-                  title="Drag onto the monitor area or click Float to create a monitor"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 pr-1">
-                    {win.iconDataUrl ? (
-                      <img src={win.iconDataUrl} alt="" className="w-5 h-5 rounded shrink-0 object-contain" />
-                    ) : (
-                      <div className="w-5 h-5 rounded bg-primary-500/10 text-primary-500 flex items-center justify-center shrink-0 text-[10px] font-bold">
-                        {win.appName.charAt(0)}
-                      </div>
+              filteredWindows.map((win) => {
+                const existingMon = monitors.find(
+                  (m) => (win.handle && m.targetHwnd === win.handle) || m.sourceWindowId === win.sourceId
+                );
+                const isFloating = !!existingMon;
+
+                return (
+                  <div
+                    key={win.id}
+                    draggable={!isFloating}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/json', JSON.stringify(win));
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    className={cn(
+                      'group p-2.5 rounded-mac border transition-all flex items-center justify-between gap-2 shadow-sm',
+                      isFloating
+                        ? 'border-emerald-200 bg-emerald-50/40'
+                        : 'border-slate-200 bg-white hover:border-primary-500/40 hover:bg-primary-50/50 cursor-grab active:cursor-grabbing'
                     )}
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium text-slate-800 truncate leading-snug">
-                        {win.title}
-                      </div>
-                      <div className="text-[10px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
-                        <span>{win.appName} {win.processId ? `• PID ${win.processId}` : ''}</span>
-                        {win.handle && win.handle !== '0' ? (
-                          <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-emerald-500/15 text-emerald-600">
-                            Interactive
-                          </span>
-                        ) : (
-                          <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-sky-500/15 text-sky-600">
-                            Preview
-                          </span>
-                        )}
+                    title={isFloating ? 'Currently floating on screen' : 'Drag onto the monitor area or click Float to create a monitor'}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 pr-1">
+                      {win.iconDataUrl ? (
+                        <img src={win.iconDataUrl} alt="" className="w-5 h-5 rounded shrink-0 object-contain" />
+                      ) : (
+                        <div className="w-5 h-5 rounded bg-primary-500/10 text-primary-500 flex items-center justify-center shrink-0 text-[10px] font-bold">
+                          {win.appName.charAt(0)}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium text-slate-800 truncate leading-snug">
+                          {win.title}
+                        </div>
+                        <div className="text-[10px] text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
+                          <span>{win.appName} {win.processId ? `• PID ${win.processId}` : ''}</span>
+                          {isFloating ? (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-700">
+                              Active Float
+                            </span>
+                          ) : win.handle && win.handle !== '0' ? (
+                            <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-emerald-500/15 text-emerald-600">
+                              Interactive
+                            </span>
+                          ) : (
+                            <span className="px-1 py-0.2 rounded text-[8px] font-semibold bg-sky-500/15 text-sky-600">
+                              Preview
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleCreateMonitor(win)}
-                      className="px-2 py-1 rounded-mac text-[11px] font-medium bg-primary-500/10 hover:bg-primary-500 text-primary-600 hover:text-white transition-all flex items-center gap-1"
-                      title="Turn into floating monitor"
-                    >
-                      <Plus size={11} /> Float
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isFloating ? (
+                        <button
+                          onClick={() => focusSource(existingMon.id)}
+                          className="px-2 py-1 rounded-mac text-[11px] font-medium bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-all flex items-center gap-1"
+                          title="Focus floating monitor"
+                        >
+                          Focus
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleCreateMonitor(win)}
+                          className="px-2 py-1 rounded-mac text-[11px] font-medium bg-primary-500/10 hover:bg-primary-500 text-primary-600 hover:text-white transition-all flex items-center gap-1"
+                          title="Turn into floating monitor"
+                        >
+                          <Plus size={11} /> Float
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 

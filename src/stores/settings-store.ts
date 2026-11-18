@@ -84,6 +84,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
 function applyTheme(_theme: ThemeMode) {
   const root = document.documentElement;
-  // Float-Space uses a clean, modern macOS-inspired light theme
   root.classList.remove('dark');
+  document.body?.classList.remove('dark');
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('float-space-theme', 'light');
+  }
 }

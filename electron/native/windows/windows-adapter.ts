@@ -96,9 +96,19 @@ export class WindowsApplicationAdapter implements IApplicationAdapter {
   }
 
   public async getRunningWindows(): Promise<RunningWindowInfo[]> {
+    const currentPid = process.pid;
     const psScript = `
-      Get-Process | Where-Object { $_.MainWindowTitle -and $_.MainWindowHandle -ne 0 } |
-      Select-Object Id, ProcessName, MainWindowTitle, MainWindowHandle, Path |
+      Get-Process | Where-Object {
+        $_.MainWindowTitle -and
+        $_.MainWindowHandle -ne 0 -and
+        $_.Id -ne ${currentPid} -and
+        $_.ProcessName -notmatch '^(TextInputHost|ShellExperienceHost|dwm|csrss|smss|lsass|SystemSettings|SearchApp|StartMenuExperienceHost|LockApp)$'
+      } | Where-Object {
+        $_.MainWindowTitle.Trim() -ne '' -and
+        $_.MainWindowTitle -ne 'Program Manager' -and
+        $_.MainWindowTitle -ne 'Float-Space' -and
+        $_.MainWindowTitle -notlike 'Floating Monitor*'
+      } | Select-Object Id, ProcessName, MainWindowTitle, MainWindowHandle, Path |
       ConvertTo-Json -Compress
     `;
 
@@ -115,7 +125,7 @@ export class WindowsApplicationAdapter implements IApplicationAdapter {
 
       const list = Array.isArray(rawData) ? rawData : [rawData];
       return list.map((item: any) => ({
-        id: `win-${item.Id}`,
+        id: `win-${item.MainWindowHandle}`,
         sourceId: `window:${item.MainWindowHandle}:0`,
         title: item.MainWindowTitle || item.ProcessName,
         appName: item.ProcessName || 'Application',

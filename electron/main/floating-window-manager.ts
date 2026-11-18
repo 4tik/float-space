@@ -58,6 +58,25 @@ export class FloatingWindowManager {
         ? inputConfig.sourceWindowId.split(':')[1]
         : undefined);
 
+    // Prevent duplicate monitors for the same target application window
+    const targetKey = targetHwnd || inputConfig.sourceWindowId;
+    if (targetKey) {
+      for (const [existingId, existingConfig] of this.configs.entries()) {
+        const matchesHwnd = targetHwnd && existingConfig.targetHwnd === targetHwnd;
+        const matchesSource = inputConfig.sourceWindowId && existingConfig.sourceWindowId === inputConfig.sourceWindowId;
+        if (matchesHwnd || matchesSource) {
+          const existingWin = this.windows.get(existingId);
+          if (existingWin && !existingWin.isDestroyed()) {
+            if (existingWin.isMinimized()) existingWin.restore();
+            existingWin.show();
+            existingWin.focus();
+            this.broadcastStateChange(existingConfig);
+            return existingConfig;
+          }
+        }
+      }
+    }
+
     const config: FloatingWindowConfig = {
       id,
       applicationId: inputConfig.applicationId,
