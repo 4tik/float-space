@@ -9,7 +9,8 @@
   "electronLanguages": ["en-US"],
   "asar": true,
   "asarUnpack": [
-    "dist/electron/native/windows/scripts/**/*"
+    "dist/electron/native/windows/scripts/**/*",
+    "dist/electron/native/windows/virtual-display/**/*"
   ],
   "files": [
     "dist/**/*",

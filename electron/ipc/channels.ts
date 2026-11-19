@@ -26,6 +26,19 @@ export const IPC_CHANNELS = {
   DISPLAY_GET_ALL: 'display:get-all',
   DISPLAY_CHANGED: 'display:changed',
 
+  // Virtual Extended Monitor Subsystem
+  VIRTUAL_DISPLAY_GET_STATUS: 'virtual-display:get-status',
+  VIRTUAL_DISPLAY_CREATE: 'virtual-display:create',
+  VIRTUAL_DISPLAY_ENABLE: 'virtual-display:enable',
+  VIRTUAL_DISPLAY_DISABLE: 'virtual-display:disable',
+  VIRTUAL_DISPLAY_SET_RESOLUTION: 'virtual-display:set-resolution',
+  VIRTUAL_DISPLAY_MOVE_APP: 'virtual-display:move-app',
+  VIRTUAL_DISPLAY_RETURN_APP: 'virtual-display:return-app',
+  VIRTUAL_DISPLAY_GET_APPS: 'virtual-display:get-apps',
+  VIRTUAL_DISPLAY_LAUNCH: 'virtual-display:launch',
+  VIRTUAL_DISPLAY_FORWARD_INPUT: 'virtual-display:forward-input',
+  VIRTUAL_DISPLAY_GET_SOURCE_ID: 'virtual-display:get-source-id',
+
   // Application Discovery & Launcher
   APP_GET_INSTALLED: 'app:get-installed',
   APP_GET_RUNNING_WINDOWS: 'app:get-running-windows',

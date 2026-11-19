@@ -200,6 +200,12 @@ if (!gotTheLock) {
     }
   });
 
+  app.on('before-quit', () => {
+    if (process.platform === 'win32') {
+      Win32WindowEmbedder.getInstance().detachAll();
+    }
+  });
+
   app.on('will-quit', () => {
     if (process.platform === 'win32') {
       Win32WindowEmbedder.getInstance().detachAll();

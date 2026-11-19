@@ -30,6 +30,24 @@ export const electronAPI = {
   // Displays
   getAllDisplays: () => ipcRenderer.invoke(IPC_CHANNELS.DISPLAY_GET_ALL),
 
+  // Virtual Extended Monitor Subsystem
+  getVirtualDisplayStatus: () => ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_GET_STATUS),
+  createVirtualDisplay: (width?: number, height?: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_CREATE, { width, height }),
+  enableVirtualDisplay: () => ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_ENABLE),
+  disableVirtualDisplay: () => ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_DISABLE),
+  setVirtualDisplayResolution: (width: number, height: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_SET_RESOLUTION, { width, height }),
+  moveAppToVirtualDisplay: (params: { hwnd: string; title?: string; appName?: string; processId?: number; maximize?: boolean }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_MOVE_APP, params),
+  returnAppFromVirtualDisplay: (hwnd: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_RETURN_APP, hwnd),
+  getAppsOnVirtualDisplay: () => ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_GET_APPS),
+  launchVirtualDisplayMonitor: () => ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_LAUNCH),
+  getVirtualDisplaySourceId: () => ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_GET_SOURCE_ID),
+  forwardVirtualDisplayInput: (event: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIRTUAL_DISPLAY_FORWARD_INPUT, event),
+
   // Applications
   getInstalledApplications: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_INSTALLED),
   getRunningWindows: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_RUNNING_WINDOWS),

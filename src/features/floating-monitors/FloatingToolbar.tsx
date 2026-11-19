@@ -71,33 +71,14 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
               <Globe size={9} className="text-indigo-600" />
               <span>Web</span>
             </span>
-          ) : onToggleDisplayMode ? (
-            <button
-              onClick={onToggleDisplayMode}
-              className={cn(
-                'inline-flex items-center gap-1 px-1.5 py-0.2 rounded-[4px] text-[9px] font-semibold tracking-wide uppercase transition-colors border cursor-pointer',
-                isEmbedded
-                  ? 'bg-emerald-500/10 text-emerald-800 border-emerald-600/20 hover:bg-emerald-500/20'
-                  : 'bg-amber-500/10 text-amber-900 border-amber-600/20 hover:bg-amber-500/20'
-              )}
-              title={
-                isEmbedded
-                  ? 'Mode: Native Interactive. Click to switch to Live Capture.'
-                  : 'Mode: Live Visual Preview. Click to switch to Native Embedding.'
-              }
+          ) : config.displayMode === 'virtual-display' ? (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-[4px] text-[9px] font-semibold tracking-wide uppercase border bg-emerald-500/15 text-emerald-900 border-emerald-600/25"
+              title="Virtual Extended Display: Live 60 FPS desktop with full mouse & keyboard control"
             >
-              {isEmbedded ? (
-                <>
-                  <MousePointer size={9} className="text-emerald-600" />
-                  <span>Interactive</span>
-                </>
-              ) : (
-                <>
-                  <Eye size={9} className="text-amber-600" />
-                  <span>Preview</span>
-                </>
-              )}
-            </button>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Virtual Display</span>
+            </span>
           ) : (
             <span
               className={cn(
@@ -106,16 +87,21 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                   ? 'bg-emerald-500/10 text-emerald-800 border-emerald-600/20'
                   : 'bg-amber-500/10 text-amber-900 border-amber-600/20'
               )}
+              title={
+                isEmbedded
+                  ? 'Native Application Window: Direct mouse, keyboard, and OS interaction active'
+                  : 'Visual Monitor: Read-only display capture'
+              }
             >
               {isEmbedded ? (
                 <>
-                  <MousePointer size={9} className="text-emerald-600" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                   <span>Interactive</span>
                 </>
               ) : (
                 <>
                   <Eye size={9} className="text-amber-600" />
-                  <span>Preview</span>
+                  <span>Visual Monitor</span>
                 </>
               )}
             </span>

@@ -450,26 +450,32 @@ export const LiveCapturePreview: React.FC<LiveCapturePreviewProps> = ({
 
       {/* Error Overlay */}
       {error && (
-        <div className="absolute inset-0 bg-slate-50/95 flex flex-col items-center justify-center p-5 text-center select-none text-slate-700 z-30">
-          <AlertCircle size={26} className="text-amber-500 mb-2" />
-          <span className="text-xs font-semibold text-slate-800">{error}</span>
-          <span className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
-            If the application is minimized, click below to restore its live frame buffer.
+        <div className="absolute inset-0 bg-[#FAF9F6]/95 backdrop-blur-md flex flex-col items-center justify-center p-5 text-center select-none text-[#1D1D1F] z-30">
+          <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center mb-2.5">
+            <AlertCircle size={22} />
+          </div>
+          <span className="text-xs font-semibold text-[#1D1D1F]">
+            {error.includes('closed') ? 'Application Window Closed or Minimized' : error}
+          </span>
+          <span className="text-[11px] text-stone-500 mt-1 max-w-xs leading-relaxed">
+            {error.includes('closed')
+              ? 'The application window was closed or minimized to the system tray. Click below to bring it back to the screen.'
+              : 'If the application is minimized or elevated, click below to focus and restore its window.'}
           </span>
           <div className="flex items-center gap-2 mt-4">
             <button
               onClick={handleFocusAndRetry}
-              className="px-3.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold rounded-md shadow-xs inline-flex items-center gap-1.5 transition-all"
+              className="px-3.5 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-600/30 text-amber-900 text-xs font-medium rounded-[6px] inline-flex items-center gap-1.5 transition-all cursor-pointer"
             >
-              <ExternalLink size={12} /> Focus Application & Restore
+              <ExternalLink size={11} /> Focus & Restore
             </button>
             <button
               onClick={() => setRetryCount((c) => c + 1)}
-              className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-medium rounded-md shadow-xs inline-flex items-center gap-1.5 transition-all"
+              className="px-3 py-1.5 bg-white hover:bg-stone-50 border border-black/[0.1] text-stone-700 text-xs font-medium rounded-[6px] shadow-2xs inline-flex items-center gap-1.5 transition-all cursor-pointer flex items-center"
             >
-              <RotateCcw size={12} /> Retry
+              <RotateCcw size={11} /> Retry
             </button>
-          </div>6
+          </div>
         </div>
       )}
 

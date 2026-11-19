@@ -21,12 +21,16 @@ export interface Win32EmbedResult {
   embedded: boolean;
   message: string;
   originalStyle?: number;
+  originalExStyle?: number;
+  resolvedHwnd?: string;
 }
 
 interface TrackedWindow {
   targetHwnd: string;
   containerHwnd: string;
   originalStyle?: number;
+  originalExStyle?: number;
+  origBounds?: { x: number; y: number; width: number; height: number };
 }
 
 export class Win32WindowEmbedder {
@@ -210,7 +214,7 @@ export class Win32WindowEmbedder {
   public async embed(
     targetHwnd: string,
     containerHwnd: string,
-    bounds: { width: number; height: number; titlebarHeight?: number }
+    bounds: { width: number; height: number; titlebarHeight?: number; processId?: number; title?: string }
   ): Promise<Win32EmbedResult> {
     if (!Win32WindowEmbedder.isSupported()) {
       return { supported: false, embedded: false, message: 'Only supported on Windows.' };
@@ -229,27 +233,42 @@ export class Win32WindowEmbedder {
         y: titlebar,
         width: contentWidth,
         height: contentHeight,
+        processId: bounds.processId || 0,
+        title: bounds.title || '',
       });
 
       if (res && res.success) {
-        this.embeddedWindows.set(targetHwnd, {
-          targetHwnd,
+        const actualHwnd = res.resolvedHwnd || targetHwnd;
+        this.embeddedWindows.set(actualHwnd, {
+          targetHwnd: actualHwnd,
           containerHwnd,
           originalStyle: res.originalStyle,
+          originalExStyle: res.originalExStyle,
+          origBounds: {
+            x: res.origX,
+            y: res.origY,
+            width: res.origWidth,
+            height: res.origHeight,
+          },
         });
+        if (actualHwnd !== targetHwnd) {
+          this.embeddedWindows.set(targetHwnd, this.embeddedWindows.get(actualHwnd)!);
+        }
 
         return {
           supported: true,
           embedded: true,
           message: 'Target application window embedded into floating monitor.',
           originalStyle: res.originalStyle,
+          originalExStyle: res.originalExStyle,
+          resolvedHwnd: actualHwnd,
         };
       }
 
       return {
         supported: true,
         embedded: false,
-        message: res?.error || 'Native embedding unsuccessful. Falling back to live interactive mirror.',
+        message: res?.error || 'Native embedding unsuccessful.',
       };
     } catch (err: any) {
       return {
@@ -289,11 +308,37 @@ export class Win32WindowEmbedder {
     const res = await this.executeCommand({
       action: 'detach',
       targetHwnd,
+      parentHwnd: tracked?.containerHwnd,
       originalStyle: tracked?.originalStyle ?? 0,
+      originalExStyle: tracked?.originalExStyle ?? 0,
+      origX: tracked?.origBounds?.x,
+      origY: tracked?.origBounds?.y,
+      origWidth: tracked?.origBounds?.width,
+      origHeight: tracked?.origBounds?.height,
     });
 
     this.embeddedWindows.delete(targetHwnd);
+    if (tracked?.targetHwnd && tracked.targetHwnd !== targetHwnd) {
+      this.embeddedWindows.delete(tracked.targetHwnd);
+    }
     return !!res?.success;
+  }
+
+  public async resolveWindow(
+    processId: number,
+    title?: string,
+    hintHwnd?: string
+  ): Promise<{ success: boolean; hwnd?: string; title?: string; processId?: number; width?: number; height?: number }> {
+    if (!Win32WindowEmbedder.isSupported() || processId <= 0) return { success: false };
+
+    const res = await this.executeCommand({
+      action: 'resolve_window',
+      processId,
+      title: title || '',
+      targetHwnd: hintHwnd || '0',
+    });
+
+    return res || { success: false };
   }
 
   public async detachAll(): Promise<void> {
@@ -397,6 +442,96 @@ export class Win32WindowEmbedder {
       deltaY,
       charCode,
       keyCode,
+    });
+
+    return !!res?.success;
+  }
+
+  public async moveWindowToDisplay(
+    targetHwnd: string,
+    bounds: { x: number; y: number; width: number; height: number; maximize?: boolean }
+  ): Promise<{ success: boolean; origBounds?: { x: number; y: number; width: number; height: number } }> {
+    if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') {
+      return { success: false };
+    }
+
+    const res = await this.executeCommand({
+      action: 'move_to_display',
+      targetHwnd,
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      maximize: !!bounds.maximize,
+    });
+
+    if (res && res.success) {
+      return {
+        success: true,
+        origBounds: {
+          x: res.origX,
+          y: res.origY,
+          width: res.origWidth,
+          height: res.origHeight,
+        },
+      };
+    }
+    return { success: false };
+  }
+
+  public async returnWindowFromDisplay(
+    targetHwnd: string,
+    bounds: { x: number; y: number; width: number; height: number }
+  ): Promise<boolean> {
+    if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') return false;
+
+    const res = await this.executeCommand({
+      action: 'return_from_display',
+      targetHwnd,
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+    });
+
+    return !!res?.success;
+  }
+
+  public async getWindowRect(
+    targetHwnd: string
+  ): Promise<{ success: boolean; x?: number; y?: number; width?: number; height?: number }> {
+    if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') {
+      return { success: false };
+    }
+
+    const res = await this.executeCommand({
+      action: 'get_window_rect',
+      targetHwnd,
+    });
+
+    return res || { success: false };
+  }
+
+  public async injectVirtualScreenInput(event: {
+    screenX: number;
+    screenY: number;
+    inputType: 'click' | 'mouse_down' | 'mouse_up' | 'double_click' | 'context_menu' | 'wheel' | 'move' | 'char' | 'key';
+    deltaX?: number;
+    deltaY?: number;
+    charCode?: number;
+    keyCode?: number;
+  }): Promise<boolean> {
+    if (!Win32WindowEmbedder.isSupported()) return false;
+
+    const res = await this.executeCommand({
+      action: 'virtual_screen_input',
+      screenX: Math.round(event.screenX),
+      screenY: Math.round(event.screenY),
+      inputType: event.inputType,
+      deltaX: Math.round(event.deltaX ?? 0),
+      deltaY: Math.round(event.deltaY ?? 0),
+      charCode: event.charCode ?? 0,
+      keyCode: event.keyCode ?? 0,
     });
 
     return !!res?.success;
