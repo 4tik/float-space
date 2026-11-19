@@ -1,7 +1,12 @@
 # Float-Space
 
-> **Interactive Desktop Floating Application Monitor for Windows & macOS**  
-> Display any running desktop application or browser window inside a compact, resizable, movable floating monitor. Interact with it directly through native window embedding, or monitor it via hardware-accelerated live visual capture.
+<p align="center">
+  <img src="public/icon.png" width="96" height="96" alt="Float-Space Logo" />
+  <br />
+  <strong>Windows-Native Floating Application Monitor & Extended Workspace Utility</strong>
+</p>
+
+> Display any running desktop application or document inside a compact, resizable, movable floating monitor. Interact with it directly through genuine native window embedding, full mouse/keyboard interaction, PowerPoint presentation support, and razor-sharp DWM rendering.
 
 ---
 

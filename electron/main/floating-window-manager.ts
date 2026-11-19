@@ -14,6 +14,7 @@ export class FloatingWindowManager {
   private windows: Map<string, BrowserWindow> = new Map();
   private configs: Map<string, FloatingWindowConfig> = new Map();
   private webContentsToTarget: Map<number, { sourceId?: string; targetHwnd?: string; title?: string }> = new Map();
+  private presentationWatchers: Map<string, NodeJS.Timeout> = new Map();
   private db = DatabaseService.getInstance();
   private displayService = DisplayService.getInstance();
   private logger = LoggerService.getInstance();
@@ -163,7 +164,7 @@ export class FloatingWindowManager {
         );
       }
 
-      await Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd).catch(() => {});
+      await Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd).catch(() => { });
     }
 
     // Create Electron BrowserWindow for Extended Floating Monitor
@@ -178,7 +179,8 @@ export class FloatingWindowManager {
         minWidth: 240,
         minHeight: 160,
         frame: false,
-        transparent: true,
+        transparent: false,
+        backgroundColor: '#FFFFFF',
         hasShadow: true,
         alwaysOnTop: config.alwaysOnTop,
         movable: !config.isLocked,
@@ -239,6 +241,15 @@ export class FloatingWindowManager {
           }
           config.interactionMessage =
             'Native Application Window Active: Full mouse clicks, typing, and controls';
+
+          // If target application is PowerPoint, activate dynamic slide show window tracker
+          if (
+            config.appName?.toLowerCase().includes('powerpoint') ||
+            config.title?.toLowerCase().includes('powerpoint') ||
+            config.executablePath?.toLowerCase().includes('powerpnt')
+          ) {
+            this.startPresentationWatcher(id, config);
+          }
         } else {
           // macOS / Linux
           config.displayMode = 'live-monitor';
@@ -247,7 +258,7 @@ export class FloatingWindowManager {
       }
     } catch (err: any) {
       if (win && !win.isDestroyed()) {
-        try { win.destroy(); } catch {}
+        try { win.destroy(); } catch { }
       }
       this.windows.delete(id);
       this.configs.delete(id);
@@ -257,7 +268,7 @@ export class FloatingWindowManager {
     // Event listeners
     win.on('focus', () => {
       if (config.displayMode === 'embedded' && config.targetHwnd && process.platform === 'win32') {
-        Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd).catch(() => {});
+        Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd).catch(() => { });
       }
     });
 
@@ -282,7 +293,7 @@ export class FloatingWindowManager {
           width: newBounds.width,
           height: newBounds.height,
           titlebarHeight: 32,
-        }).catch(() => {});
+        }).catch(() => { });
       }
     });
 
@@ -329,14 +340,21 @@ export class FloatingWindowManager {
     });
 
     win.on('close', async () => {
+      this.stopPresentationWatcher(id);
       if (config.targetHwnd && process.platform === 'win32') {
         try {
           await Win32WindowEmbedder.getInstance().detach(config.targetHwnd);
+        } catch { }
+      }
+      if (config.originalEditorHwnd && process.platform === 'win32') {
+        try {
+          await Win32WindowEmbedder.getInstance().detach(config.originalEditorHwnd);
         } catch {}
       }
     });
 
     win.on('closed', () => {
+      this.stopPresentationWatcher(id);
       this.webContentsToTarget.delete(webContentsId);
       this.windows.delete(id);
       this.configs.delete(id);
@@ -361,6 +379,126 @@ export class FloatingWindowManager {
 
   public getWindow(id: string): BrowserWindow | undefined {
     return this.windows.get(id);
+  }
+
+  private startPresentationWatcher(id: string, config: FloatingWindowConfig): void {
+    if (this.presentationWatchers.has(id)) return;
+
+    const timer = setInterval(async () => {
+      const win = this.windows.get(id);
+      if (!win || win.isDestroyed()) {
+        this.stopPresentationWatcher(id);
+        return;
+      }
+
+      const currentConfig = this.configs.get(id);
+      if (!currentConfig || currentConfig.displayMode !== 'embedded' || !currentConfig.processId) {
+        return;
+      }
+
+      try {
+        const presHwnd = await Win32WindowEmbedder.getInstance().findPresentationWindow(currentConfig.processId);
+
+        // Case A: PowerPoint started Slide Show (new screenClass window created)
+        if (presHwnd && presHwnd !== currentConfig.targetHwnd) {
+          this.logger.info(
+            'FloatingWindowManager',
+            `PowerPoint Slide Show window detected: HWND=${presHwnd}. Embedding presentation window into monitor...`
+          );
+
+          if (!currentConfig.isPresentationMode) {
+            currentConfig.originalEditorHwnd = currentConfig.targetHwnd;
+            currentConfig.isPresentationMode = true;
+          }
+
+          const rawBuffer = win.getNativeWindowHandle();
+          const containerHwnd =
+            rawBuffer.length === 8
+              ? rawBuffer.readBigUInt64LE(0).toString()
+              : rawBuffer.readUInt32LE(0).toString();
+
+          const embedRes = await Win32WindowEmbedder.getInstance().embed(presHwnd, containerHwnd, {
+            width: currentConfig.width,
+            height: currentConfig.height,
+            titlebarHeight: 32,
+            processId: currentConfig.processId,
+            title: 'PowerPoint Slide Show',
+          });
+
+          if (embedRes.embedded) {
+            currentConfig.targetHwnd = presHwnd;
+            currentConfig.title = 'PowerPoint Slide Show';
+            this.updateConfig(currentConfig);
+            this.broadcastStateChange(currentConfig);
+            await Win32WindowEmbedder.getInstance().focusWindow(presHwnd).catch(() => {});
+          }
+        }
+        // Case B: PowerPoint exited Slide Show, restore original presentation editor window
+        else if (currentConfig.isPresentationMode && !presHwnd && currentConfig.originalEditorHwnd) {
+          const editorHwnd = currentConfig.originalEditorHwnd;
+          this.logger.info(
+            'FloatingWindowManager',
+            `PowerPoint Slide Show closed. Restoring PowerPoint editor window HWND=${editorHwnd}`
+          );
+
+          const rawBuffer = win.getNativeWindowHandle();
+          const containerHwnd =
+            rawBuffer.length === 8
+              ? rawBuffer.readBigUInt64LE(0).toString()
+              : rawBuffer.readUInt32LE(0).toString();
+
+          const embedRes = await Win32WindowEmbedder.getInstance().embed(editorHwnd, containerHwnd, {
+            width: currentConfig.width,
+            height: currentConfig.height,
+            titlebarHeight: 32,
+            processId: currentConfig.processId,
+          });
+
+          if (embedRes.embedded) {
+            currentConfig.targetHwnd = editorHwnd;
+            currentConfig.originalEditorHwnd = undefined;
+            currentConfig.isPresentationMode = false;
+            currentConfig.title = currentConfig.appName || 'Microsoft PowerPoint';
+            this.updateConfig(currentConfig);
+            this.broadcastStateChange(currentConfig);
+            await Win32WindowEmbedder.getInstance().focusWindow(editorHwnd).catch(() => {});
+          }
+        }
+      } catch (err) {
+        this.logger.warn('FloatingWindowManager', 'Presentation watcher error', err);
+      }
+    }, 500);
+
+    this.presentationWatchers.set(id, timer);
+  }
+
+  private stopPresentationWatcher(id: string): void {
+    const timer = this.presentationWatchers.get(id);
+    if (timer) {
+      clearInterval(timer);
+      this.presentationWatchers.delete(id);
+    }
+  }
+
+  public async sendPresentationControl(id: string, action: 'next' | 'prev' | 'escape' | 'start'): Promise<boolean> {
+    const config = this.configs.get(id);
+    if (!config?.targetHwnd || process.platform !== 'win32') return false;
+
+    let keyCode = 0x27; // VK_RIGHT default
+    if (action === 'prev') keyCode = 0x25; // VK_LEFT
+    if (action === 'escape') keyCode = 0x1B; // VK_ESCAPE
+    if (action === 'start') keyCode = 0x74; // VK_F5
+
+    try {
+      await Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd);
+      await Win32WindowEmbedder.getInstance().forwardInput(config.targetHwnd, {
+        type: 'key',
+        keyCode,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   public getConfig(id: string): FloatingWindowConfig | undefined {
@@ -532,7 +670,7 @@ export class FloatingWindowManager {
     if (config?.targetHwnd && process.platform === 'win32') {
       try {
         await Win32WindowEmbedder.getInstance().detach(config.targetHwnd);
-      } catch {}
+      } catch { }
     }
     if (win && !win.isDestroyed()) {
       win.close();

@@ -17,6 +17,7 @@ export const IPC_CHANNELS = {
   WINDOW_FORWARD_INPUT: 'floating-window:forward-input',
   WINDOW_DETACH: 'floating-window:detach',
   WINDOW_DUPLICATE: 'floating-window:duplicate',
+  WINDOW_PRESENTATION_CONTROL: 'floating-window:presentation-control',
   WINDOW_STATE_CHANGED: 'floating-window:state-changed',
   WINDOW_BOUNDS_CHANGED: 'floating-window:bounds-changed',
 

@@ -5,6 +5,8 @@ export interface FloatingWindowConfig {
   applicationId?: string;
   sourceWindowId?: string; // Target running window ID for capture
   targetHwnd?: string; // Win32 Native HWND for interactive embedding
+  originalEditorHwnd?: string; // Original base window handle during presentation mode
+  isPresentationMode?: boolean; // True when presentation mode (e.g. PowerPoint Slide Show) is active
   processId?: number; // Target process ID
   executablePath?: string; // Target executable path
   appName?: string; // Target application display name

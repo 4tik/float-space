@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, screen, session, desktopCapturer, webContents } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { DatabaseService } from '../database/db';
 import { FloatingWindowManager } from './floating-window-manager';
 import { registerIpcHandlers } from '../ipc/handlers';
@@ -14,6 +15,7 @@ app.commandLine.appendSwitch('disable-features', 'DisplayMediaRequiresUserAction
 
 const logger = LoggerService.getInstance();
 let mainWindow: BrowserWindow | null = null;
+let splashWindow: BrowserWindow | null = null;
 
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -30,6 +32,9 @@ if (!gotTheLock) {
 
   app.whenReady().then(async () => {
     logger.info('Main', 'Electron app ready, starting Float-Space');
+
+    // Show sleek native splash screen during startup initialization
+    createSplashWindow();
 
     // Grant screen capture and media permissions for desktopCapturer
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
@@ -215,9 +220,42 @@ if (!gotTheLock) {
   });
 }
 
+function createSplashWindow(): void {
+  const iconPath = path.join(__dirname, '../../build/icon.png');
+  splashWindow = new BrowserWindow({
+    width: 380,
+    height: 280,
+    frame: false,
+    resizable: false,
+    center: true,
+    alwaysOnTop: true,
+    show: true,
+    transparent: true,
+    backgroundColor: '#00000000',
+    title: 'Float-Space',
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  const splashCandidates = [
+    path.join(__dirname, 'splash.html'),
+    path.join(__dirname, '../../electron/main/splash.html'),
+  ];
+  for (const p of splashCandidates) {
+    if (fs.existsSync(p)) {
+      splashWindow.loadFile(p);
+      break;
+    }
+  }
+}
+
 function createMainWindow(): void {
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   const preloadPath = path.join(__dirname, '../preload/index.js');
+  const iconPath = path.join(__dirname, '../../build/icon.png');
 
   mainWindow = new BrowserWindow({
     width: 1040,
@@ -225,16 +263,36 @@ function createMainWindow(): void {
     minWidth: 800,
     minHeight: 560,
     frame: false,
-    transparent: true,
+    show: false,
+    transparent: false,
     hasShadow: true,
-    backgroundColor: '#00000000',
+    backgroundColor: '#F8F9FA',
     title: 'Float-Space',
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
+  });
+
+  const startTime = Date.now();
+  mainWindow.once('ready-to-show', () => {
+    const elapsed = Date.now() - startTime;
+    const minSplashDuration = 800; // Smooth splash transition
+    const remaining = Math.max(0, minSplashDuration - elapsed);
+
+    setTimeout(() => {
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.destroy();
+        splashWindow = null;
+      }
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    }, remaining);
   });
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {

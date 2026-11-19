@@ -132,6 +132,51 @@ public class Win32Native {
     public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetProcessDpiAwarenessContext(IntPtr dpiContext);
+
+    static Win32Native() {
+        try {
+            // Set Per-Monitor V2 DPI awareness (-4) to guarantee 1:1 sharp pixel rendering
+            SetProcessDpiAwarenessContext(new IntPtr(-4));
+        } catch {}
+    }
+
+    public static IntPtr FindPresentationWindow(uint processId) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows((hWnd, lParam) => {
+            if (!IsWindow(hWnd)) return true;
+            uint pid = 0;
+            GetWindowThreadProcessId(hWnd, out pid);
+            if (pid != processId) return true;
+
+            var sbClass = new StringBuilder(256);
+            GetClassName(hWnd, sbClass, 256);
+            string cls = sbClass.ToString();
+
+            if (cls == "screenClass" || cls == "PP9FrameClass") {
+                if (IsWindowVisible(hWnd)) {
+                    found = hWnd;
+                    return false;
+                }
+            }
+
+            var sbTitle = new StringBuilder(512);
+            GetWindowText(hWnd, sbTitle, 512);
+            string title = sbTitle.ToString();
+            if (title.StartsWith("PowerPoint Slide Show", StringComparison.OrdinalIgnoreCase)) {
+                if (IsWindowVisible(hWnd)) {
+                    found = hWnd;
+                    return false;
+                }
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        return found;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT {
         public int Left;
@@ -421,7 +466,8 @@ function Dispatch-Action($params) {
     [Win32Native]::SetWindowLong($targetPtr, -16, $newStyle) | Out-Null
 
     # Remove WS_EX_APPWINDOW (0x00040000) so it doesn't show a redundant separate taskbar button while embedded
-    $newExStyle = ($oldExStyle -band (-bnot 0x00040000))
+    # AND remove WS_EX_LAYERED (0x00080000) to guarantee 100% sharp opacity and eliminate alpha bleed on File Explorer
+    $newExStyle = ($oldExStyle -band (-bnot (0x00040000 -bor 0x00080000)))
     [Win32Native]::SetWindowLong($targetPtr, -20, $newExStyle) | Out-Null
 
     # 6. Reparent window to parent container
@@ -657,6 +703,15 @@ function Dispatch-Action($params) {
 
       $out["success"] = $true
     }
+    return $out
+  }
+
+  if ($action -eq "find_presentation_window") {
+    [uint32]$procId = 0
+    if ($processId -gt 0) { $procId = [uint32]$processId }
+    $presHwnd = [Win32Native]::FindPresentationWindow($procId)
+    $out["success"] = ($presHwnd -ne [IntPtr]::Zero)
+    $out["hwnd"] = if ($presHwnd -ne [IntPtr]::Zero) { $presHwnd.ToInt64().ToString() } else { $null }
     return $out
   }
 

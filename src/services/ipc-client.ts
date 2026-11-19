@@ -134,6 +134,13 @@ export const ipcClient = {
     return true;
   },
 
+  async sendPresentationControl(id: string, action: 'next' | 'prev' | 'escape' | 'start'): Promise<boolean> {
+    if (isElectron && window.electronAPI.sendPresentationControl) {
+      return await window.electronAPI.sendPresentationControl(id, action);
+    }
+    return false;
+  },
+
   async forwardInput(targetHwnd: string, event: any): Promise<boolean> {
     if (isElectron && window.electronAPI?.forwardInput) {
       return await window.electronAPI.forwardInput(targetHwnd, event);

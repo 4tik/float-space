@@ -10,6 +10,7 @@ import {
   Tv,
 } from 'lucide-react';
 import { WindowsCaptionButtons } from '../common/WindowsCaptionButtons';
+import { FloatSpaceLogo } from '../common/FloatSpaceLogo';
 import { useApplicationStore } from '../../stores/application-store';
 import { useMonitorStore } from '../../stores/monitor-store';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -86,9 +87,7 @@ export const AppShell: React.FC = () => {
       <header className="h-9 bg-[#F0F3F6] border-b border-slate-200/90 flex items-center justify-between shrink-0 app-drag-region select-none relative">
         {/* Left: Brand Icon & Title */}
         <div className="flex items-center gap-2 pl-3 app-drag-region">
-          <span className="w-4 h-4 rounded bg-[#0067C0] text-white flex items-center justify-center shadow-xs shrink-0">
-            <Layers size={10} className="stroke-[2.5]" />
-          </span>
+          <FloatSpaceLogo size={18} className="shrink-0" />
           <h1 className="text-[12px] font-semibold text-slate-800 tracking-tight">
             Float-Space
           </h1>

@@ -20,6 +20,8 @@ export const electronAPI = {
   detachWindow: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_DETACH, id),
   forwardInput: (targetHwnd: string, event: any) =>
     ipcRenderer.invoke(IPC_CHANNELS.WINDOW_FORWARD_INPUT, { targetHwnd, event }),
+  sendPresentationControl: (id: string, action: 'next' | 'prev' | 'escape' | 'start') =>
+    ipcRenderer.invoke(IPC_CHANNELS.WINDOW_PRESENTATION_CONTROL, { id, action }),
   hideAllWindows: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_HIDE_ALL),
   showAllWindows: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_SHOW_ALL),
   snapWindow: (id: string, snap: string, displayId?: number) =>

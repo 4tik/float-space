@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build:renderer": "vite build",
-    "build:electron": "tsc -p tsconfig.electron.json && node -e \"const fs = require('fs'); const path = require('path'); const d = 'dist/electron/native/windows/scripts'; if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); fs.copyFileSync('electron/native/windows/scripts/win32-bridge.ps1', path.join(d, 'win32-bridge.ps1'));\"",
+    "build:electron": "tsc -p tsconfig.electron.json && node -e \"const fs = require('fs'); const path = require('path'); const d = 'dist/electron/native/windows/scripts'; if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); fs.copyFileSync('electron/native/windows/scripts/win32-bridge.ps1', path.join(d, 'win32-bridge.ps1')); const m = 'dist/electron/main'; if (!fs.existsSync(m)) fs.mkdirSync(m, { recursive: true }); fs.copyFileSync('electron/main/splash.html', path.join(m, 'splash.html'));\"",
     "build": "npm run build:electron && npm run build:renderer",
     "start": "electron dist/electron/main/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",

@@ -466,6 +466,22 @@ export class Win32WindowEmbedder {
     return { valid: true, actualPid: res.actualPid, title: res.title };
   }
 
+  public async findPresentationWindow(processId: number): Promise<string | null> {
+    if (!Win32WindowEmbedder.isSupported() || !processId) return null;
+    try {
+      const res = await this.executeCommand({
+        action: 'find_presentation_window',
+        processId,
+      });
+      if (res && res.success && res.hwnd) {
+        return String(res.hwnd);
+      }
+    } catch (err) {
+      this.logger.error('Win32WindowEmbedder', 'Error finding presentation window', err);
+    }
+    return null;
+  }
+
   public async findCurrentWindowForApplication(criteria: {
     processId?: number;
     executablePath?: string;

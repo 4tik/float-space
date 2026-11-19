@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Float-Space</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #F8F9FA;
+      font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+      color: #1E293B;
+      border: 1px solid #CBD5E1;
+      border-radius: 12px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+      -webkit-app-region: drag;
+    }
+    .splash-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .logo-container {
+      width: 76px;
+      height: 76px;
+      margin-bottom: 18px;
+      filter: drop-shadow(0 8px 18px rgba(0, 103, 192, 0.25));
+      animation: logoPulse 2.4s ease-in-out infinite;
+    }
+    .logo-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #0F172A;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 12px;
+      font-weight: 500;
+      color: #64748B;
+      letter-spacing: -0.01em;
+      margin-bottom: 24px;
+    }
+    /* Modern Windows 11 Fluent Indeterminate Progress Bar */
+    .progress-track {
+      width: 200px;
+      height: 4px;
+      background: #E2E8F0;
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-thumb {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 40%;
+      background: linear-gradient(90deg, #00A4EF, #0067C0);
+      border-radius: 9999px;
+      animation: fluentProgress 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    @keyframes fluentProgress {
+      0% {
+        left: -40%;
+        width: 30%;
+      }
+      50% {
+        left: 30%;
+        width: 55%;
+      }
+      100% {
+        left: 100%;
+        width: 30%;
+      }
+    }
+    @keyframes logoPulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.03);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-card">
+    <div class="logo-container">
+      <img src="../../public/icon.png" alt="Float-Space">
+    </div>
+    <h1 class="title">Float-Space</h1>
+    <p class="subtitle">Extended Workspace Utility</p>
+    <div class="progress-track">
+      <div class="progress-thumb"></div>
+    </div>
+  </div>
+</body>
+</html>

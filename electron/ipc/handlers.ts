@@ -78,6 +78,10 @@ export function registerIpcHandlers(): void {
     return await Win32WindowEmbedder.getInstance().forwardInput(targetHwnd, event);
   });
 
+  ipcMain.handle(IPC_CHANNELS.WINDOW_PRESENTATION_CONTROL, async (_, { id, action }: { id: string; action: 'next' | 'prev' | 'escape' | 'start' }) => {
+    return await windowManager.sendPresentationControl(id, action);
+  });
+
   ipcMain.handle(IPC_CHANNELS.WINDOW_HIDE_ALL, () => {
     windowManager.hideAll();
     return true;

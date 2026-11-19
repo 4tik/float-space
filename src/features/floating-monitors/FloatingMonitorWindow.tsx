@@ -47,7 +47,7 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden select-none bg-transparent">
+    <div className="h-screen w-screen flex flex-col overflow-hidden select-none bg-white">
       {/* Top Floating Toolbar with Windows Caption Controls & Pin */}
       {!config.hideToolbar && (
         <FloatingToolbar
@@ -59,11 +59,11 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
         />
       )}
 
-      {/* Main Content Area: Native Win32 child window sits here */}
-      <div className="flex-1 relative overflow-hidden flex flex-col">
+      {/* Main Content Area: Native Win32 child window sits here with solid background */}
+      <div className="flex-1 relative overflow-hidden flex flex-col bg-white">
         {config.isInteractive ? (
           // The embedded native application window is attached at (0, 32)
-          <div className="flex-1 w-full h-full relative bg-transparent pointer-events-none" />
+          <div className="flex-1 w-full h-full relative bg-white pointer-events-none" />
         ) : (
           <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-50">
             <div className="w-12 h-12 rounded-full bg-blue-500/10 text-[#0067C0] flex items-center justify-center mb-3">
