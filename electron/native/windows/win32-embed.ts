@@ -5,6 +5,7 @@ import * as readline from 'readline';
 import { promisify } from 'util';
 import { LoggerService } from '../../services/logger.service';
 import { WIN32_BRIDGE_SCRIPT } from './win32-bridge-source';
+import { RunningWindowInfo } from '../../../src/types/application';
 
 function getElectronApp(): any {
   try {
@@ -382,10 +383,38 @@ export class Win32WindowEmbedder {
     return res || { success: false };
   }
 
+  public async getRunningWindows(currentPid?: number): Promise<RunningWindowInfo[]> {
+    if (!Win32WindowEmbedder.isSupported()) return [];
+
+    try {
+      const res = await this.executeCommand({
+        action: 'get_running_windows',
+        processId: currentPid || process.pid,
+      });
+
+      if (res && res.success && Array.isArray(res.windows)) {
+        return res.windows.map((w: any) => ({
+          id: w.id || `win-${w.handle}`,
+          sourceId: w.sourceId || `window:${w.handle}:0`,
+          title: w.title,
+          appName: w.appName || 'Application',
+          executablePath: w.executablePath || undefined,
+          processId: w.processId || 0,
+          handle: String(w.handle),
+          iconDataUrl: w.iconDataUrl || undefined,
+          isMinimized: !!w.isMinimized,
+        }));
+      }
+    } catch (err) {
+      this.logger.error('Win32WindowEmbedder', 'Failed to get running windows via Win32 bridge', err);
+    }
+    return [];
+  }
+
   public async validateWindow(
     targetHwnd: string,
     expectedPid?: number
-  ): Promise<{ valid: boolean; reason?: string; actualPid?: number }> {
+  ): Promise<{ valid: boolean; reason?: string; actualPid?: number; title?: string }> {
     if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') {
       return { valid: false, reason: 'Invalid native window handle' };
     }
@@ -393,7 +422,7 @@ export class Win32WindowEmbedder {
     const res = await this.executeCommand({
       action: 'validate',
       targetHwnd,
-      expectedPid,
+      expectedPid: expectedPid || 0,
     });
 
     if (!res || !res.exists) {
@@ -403,12 +432,12 @@ export class Win32WindowEmbedder {
     if (expectedPid && expectedPid > 0 && !res.pidMatch) {
       return {
         valid: false,
-        reason: `Window PID mismatch (expected ${expectedPid}, but window belongs to ${res.actualPid})`,
+        reason: res.reason || `Window PID mismatch (expected ${expectedPid}, but window belongs to ${res.actualPid})`,
         actualPid: res.actualPid,
       };
     }
 
-    return { valid: true, actualPid: res.actualPid };
+    return { valid: true, actualPid: res.actualPid, title: res.title };
   }
 
   public async forwardInput(

@@ -1,5 +1,5 @@
 # Win32 Bridge for Float-Space
-# High-performance persistent Win32 automation bridge for native window embedding, bounds synchronization, and input routing.
+# High-performance persistent Win32 automation bridge for native window embedding, bounds synchronization, exact window discovery, and input routing.
 
 param(
   [Parameter(Mandatory=$false)][string]$Action,
@@ -27,12 +27,20 @@ param(
   [Parameter(Mandatory=$false)][switch]$Daemon
 )
 
-# Inline C# P/Invoke definitions for User32
+try {
+  Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+} catch {}
+
+# Inline C# P/Invoke definitions for User32 & Exact Window Enumeration
 $code = @'
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Diagnostics;
 
 public class Win32Native {
     [DllImport("user32.dll", SetLastError = true)]
@@ -61,6 +69,9 @@ public class Win32Native {
 
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsIconic(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
@@ -134,73 +145,148 @@ public class Win32Native {
         public int Y;
     }
 
-    public static IntPtr FindBestWindowForProcess(uint targetPid, string titleHint, IntPtr initialHwnd) {
-        if (initialHwnd != IntPtr.Zero && IsWindow(initialHwnd) && IsWindowVisible(initialHwnd)) {
-            uint pid = 0;
-            GetWindowThreadProcessId(initialHwnd, out pid);
-            if (pid == targetPid) {
-                RECT r;
-                GetWindowRect(initialHwnd, out r);
-                int w = r.Right - r.Left;
-                int h = r.Bottom - r.Top;
-                if (w > 150 && h > 100) {
-                    return initialHwnd;
-                }
-            }
-        }
+    public class WindowRecord {
+        public string hwnd;
+        public uint processId;
+        public string processName;
+        public string appName;
+        public string title;
+        public string executablePath;
+        public bool isMinimized;
+        public int x;
+        public int y;
+        public int width;
+        public int height;
+        public string iconDataUrl;
+    }
 
-        IntPtr bestHwnd = IntPtr.Zero;
-        long bestScore = -1;
+    private static Dictionary<string, string> _iconCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    public static string GetIconBase64(string exePath) {
+        if (string.IsNullOrEmpty(exePath)) return null;
+        lock (_iconCache) {
+            string cached;
+            if (_iconCache.TryGetValue(exePath, out cached)) return cached;
+            try {
+                if (File.Exists(exePath)) {
+                    using (var icon = Icon.ExtractAssociatedIcon(exePath)) {
+                        if (icon != null) {
+                            using (var bmp = icon.ToBitmap())
+                            using (var ms = new MemoryStream()) {
+                                bmp.Save(ms, ImageFormat.Png);
+                                string dataUrl = "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
+                                _iconCache[exePath] = dataUrl;
+                                return dataUrl;
+                            }
+                        }
+                    }
+                }
+            } catch {}
+            _iconCache[exePath] = null;
+            return null;
+        }
+    }
+
+    public static List<WindowRecord> EnumerateApplicationWindows(uint currentPid) {
+        var list = new List<WindowRecord>();
 
         EnumWindows((hWnd, lParam) => {
-            if (!IsWindowVisible(hWnd)) return true;
+            if (!IsWindow(hWnd)) return true;
+            bool iconic = IsIconic(hWnd);
+            if (!IsWindowVisible(hWnd) && !iconic) return true;
+
+            int style = GetWindowLong(hWnd, -16); // GWL_STYLE
+            if ((style & 0x40000000) != 0) return true; // WS_CHILD
+
+            int exStyle = GetWindowLong(hWnd, -20); // GWL_EXSTYLE
+            // Ignore tool windows unless explicitly marked as app window
+            if ((exStyle & 0x00000080) != 0 && (exStyle & 0x00040000) == 0) return true;
+
+            var sbTitle = new StringBuilder(512);
+            GetWindowText(hWnd, sbTitle, 512);
+            string title = sbTitle.ToString().Trim();
+            if (string.IsNullOrEmpty(title)) return true;
+
+            if (title == "Program Manager" || title == "Default IME" || title == "MSCTFIME UI" ||
+                title == "Windows Input Experience" || title == "Float-Space" ||
+                title.StartsWith("Floating Monitor", StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            var sbClass = new StringBuilder(256);
+            GetClassName(hWnd, sbClass, 256);
+            string cls = sbClass.ToString();
+            if (cls.Contains("IME") || cls.Contains("Tooltip") || cls.Contains("Shadow") ||
+                cls.Contains("WorkerW") || cls == "Progman" || cls == "Shell_TrayWnd") {
+                return true;
+            }
+
             uint pid = 0;
             GetWindowThreadProcessId(hWnd, out pid);
-            if (pid != targetPid) return true;
+            if (pid == 0 || pid == currentPid) return true;
 
             RECT r;
             GetWindowRect(hWnd, out r);
             int w = r.Right - r.Left;
             int h = r.Bottom - r.Top;
-            if (w < 80 || h < 60) return true;
-
-            var sbClass = new StringBuilder(256);
-            GetClassName(hWnd, sbClass, 256);
-            string cls = sbClass.ToString();
-            if (cls.Contains("IME") || cls.Contains("Tooltip") || cls.Contains("Shadow") || cls.Contains("WorkerW")) {
+            if (!iconic && (w < 100 || h < 60 || r.Right <= -10000 || r.Bottom <= -10000)) {
                 return true;
             }
 
-            var sbTitle = new StringBuilder(512);
-            GetWindowText(hWnd, sbTitle, 512);
-            string title = sbTitle.ToString();
-
-            long score = (long)w * h;
-            if (!string.IsNullOrEmpty(titleHint) && !string.IsNullOrEmpty(title)) {
-                if (title.IndexOf(titleHint, StringComparison.OrdinalIgnoreCase) >= 0) {
-                    score += 10000000;
+            string procName = "Application";
+            string procPath = "";
+            string appName = "";
+            try {
+                using (var p = Process.GetProcessById((int)pid)) {
+                    procName = p.ProcessName;
+                    if (procName == "TextInputHost" || procName == "ShellExperienceHost" ||
+                        procName == "dwm" || procName == "csrss" || procName == "smss" ||
+                        procName == "lsass" || procName == "SystemSettings" ||
+                        procName == "SearchApp" || procName == "StartMenuExperienceHost" ||
+                        procName == "LockApp") {
+                        return true;
+                    }
+                    try {
+                        procPath = p.MainModule.FileName;
+                        appName = p.MainModule.FileVersionInfo.FileDescription;
+                    } catch {}
                 }
-            }
-            if (hWnd == initialHwnd) {
-                score += 5000000;
+            } catch {
+                return true;
             }
 
-            if (score > bestScore) {
-                bestScore = score;
-                bestHwnd = hWnd;
+            if (string.IsNullOrEmpty(appName)) {
+                appName = procName;
             }
+
+            string iconUrl = GetIconBase64(procPath);
+
+            list.Add(new WindowRecord {
+                hwnd = hWnd.ToInt64().ToString(),
+                processId = pid,
+                processName = procName,
+                appName = appName,
+                title = title,
+                executablePath = procPath,
+                isMinimized = iconic,
+                x = r.Left,
+                y = r.Top,
+                width = w,
+                height = h,
+                iconDataUrl = iconUrl
+            });
 
             return true;
         }, IntPtr.Zero);
 
-        return (bestHwnd != IntPtr.Zero) ? bestHwnd : initialHwnd;
+        return list;
     }
 }
 '@
 
 try {
   if (-not ([System.Management.Automation.PSTypeName]'Win32Native').Type) {
-    Add-Type -TypeDefinition $code -ErrorAction Stop
+    Add-Type -ReferencedAssemblies "System.Drawing" -TypeDefinition $code -ErrorAction Stop
   }
 } catch {
   # Type already registered in session
@@ -231,9 +317,6 @@ function Dispatch-Action($params) {
   $deltaY = if ($null -ne $params.deltaY) { [int]$params.deltaY } else { [int]$params.DeltaY }
   $charCode = if ($null -ne $params.charCode) { [int]$params.charCode } else { [int]$params.CharCode }
   $keyCode = if ($null -ne $params.keyCode) { [int]$params.keyCode } else { [int]$params.KeyCode }
-  $screenX = if ($null -ne $params.screenX) { [int]$params.screenX } else { [int]$params.ScreenX }
-  $screenY = if ($null -ne $params.screenY) { [int]$params.screenY } else { [int]$params.ScreenY }
-  $maximize = if ($null -ne $params.maximize) { [bool]$params.maximize } else { [bool]$params.Maximize }
 
   $targetPtr = [IntPtr]::Zero
   if ($targetHwndStr -and $targetHwndStr -ne "0") {
@@ -247,17 +330,36 @@ function Dispatch-Action($params) {
 
   $out = @{ success = $false; action = $action }
 
+  if ($action -eq "get_running_windows") {
+    [uint32]$curPid = 0
+    if ($processId -gt 0) { $curPid = [uint32]$processId }
+    $windows = [Win32Native]::EnumerateApplicationWindows($curPid)
+    $list = @()
+    foreach ($w in $windows) {
+      $list += @{
+        id = "win-" + $w.hwnd
+        sourceId = "window:" + $w.hwnd + ":0"
+        handle = $w.hwnd
+        processId = [int]$w.processId
+        appName = $w.appName
+        title = $w.title
+        executablePath = $w.executablePath
+        iconDataUrl = $w.iconDataUrl
+        isMinimized = [bool]$w.isMinimized
+        x = $w.x
+        y = $w.y
+        width = $w.width
+        height = $w.height
+      }
+    }
+    $out["success"] = $true
+    $out["windows"] = $list
+    return $out
+  }
+
   if ($action -eq "embed") {
     [uint32]$expectedPid = 0
     if ($processId -gt 0) { $expectedPid = [uint32]$processId }
-
-    # Resolve the true interactive window for the target process
-    if ($expectedPid -gt 0) {
-      $resolvedHwnd = [Win32Native]::FindBestWindowForProcess($expectedPid, $title, $targetPtr)
-      if ($resolvedHwnd -ne [IntPtr]::Zero) {
-        $targetPtr = $resolvedHwnd
-      }
-    }
 
     if ($targetPtr -eq [IntPtr]::Zero -or $parentPtr -eq [IntPtr]::Zero) {
       throw "Invalid window handles: Target=$targetHwndStr, Parent=$parentHwndStr"
@@ -266,15 +368,17 @@ function Dispatch-Action($params) {
       throw "Target window does not exist or has closed."
     }
 
-    # Verify process ownership
+    # Verify process ownership strictly: Target window must belong to selected application PID
     [uint32]$childPid = 0
     $childThread = [Win32Native]::GetWindowThreadProcessId($targetPtr, [ref]$childPid)
     if ($expectedPid -gt 0 -and $childPid -ne $expectedPid) {
-      throw "Target window PID ($childPid) does not match expected application PID ($expectedPid)."
+      throw "Security validation failed: Target window PID ($childPid) does not match expected application PID ($expectedPid)."
     }
 
     # 1. Restore target application window if minimized so Win32 renders it
-    [Win32Native]::ShowWindow($targetPtr, 9) | Out-Null # SW_RESTORE
+    if ([Win32Native]::IsIconic($targetPtr)) {
+      [Win32Native]::ShowWindow($targetPtr, 9) | Out-Null # SW_RESTORE
+    }
 
     # 2. Ensure parent container has WS_CLIPCHILDREN (0x02000000) so it doesn't paint over child
     $parentStyle = [Win32Native]::GetWindowLong($parentPtr, -16)
@@ -389,44 +493,15 @@ function Dispatch-Action($params) {
   }
 
   if ($action -eq "focus" -or $action -eq "restore") {
-    $foundPtr = $targetPtr
-    if ($foundPtr -eq [IntPtr]::Zero -or (-not [Win32Native]::IsWindow($foundPtr))) {
-      if ($processId -gt 0) {
-        $foundPtr = [Win32Native]::FindBestWindowForProcess([uint32]$processId, $title, [IntPtr]::Zero)
-      }
-    }
-
-    if ($foundPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($foundPtr)) {
-      [Win32Native]::ShowWindow($foundPtr, 9) | Out-Null # SW_RESTORE
-      [Win32Native]::ShowWindow($foundPtr, 5) | Out-Null # SW_SHOW
-      [Win32Native]::SetForegroundWindow($foundPtr) | Out-Null
-      [Win32Native]::BringWindowToTop($foundPtr) | Out-Null
-      [Win32Native]::SetFocus($foundPtr) | Out-Null
-      [Win32Native]::SetActiveWindow($foundPtr) | Out-Null
+    if ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr)) {
+      [Win32Native]::ShowWindow($targetPtr, 9) | Out-Null # SW_RESTORE
+      [Win32Native]::ShowWindow($targetPtr, 5) | Out-Null # SW_SHOW
+      [Win32Native]::SetForegroundWindow($targetPtr) | Out-Null
+      [Win32Native]::BringWindowToTop($targetPtr) | Out-Null
+      [Win32Native]::SetFocus($targetPtr) | Out-Null
+      [Win32Native]::SetActiveWindow($targetPtr) | Out-Null
       $out["success"] = $true
-      $out["targetHwnd"] = $foundPtr.ToInt64().ToString()
-    }
-    return $out
-  }
-
-  if ($action -eq "resolve_window") {
-    [uint32]$targetProcId = 0
-    if ($processId -gt 0) { $targetProcId = [uint32]$processId }
-    $resHwnd = [Win32Native]::FindBestWindowForProcess($targetProcId, $title, $targetPtr)
-    if ($resHwnd -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($resHwnd)) {
-      [uint32]$outPid = 0
-      $childThread = [Win32Native]::GetWindowThreadProcessId($resHwnd, [ref]$outPid)
-      $sb = New-Object System.Text.StringBuilder 512
-      [Win32Native]::GetWindowText($resHwnd, $sb, 512) | Out-Null
-      $rect = New-Object Win32Native+RECT
-      [Win32Native]::GetWindowRect($resHwnd, [ref]$rect) | Out-Null
-
-      $out["success"] = $true
-      $out["hwnd"] = $resHwnd.ToInt64().ToString()
-      $out["processId"] = [int]$outPid
-      $out["title"] = $sb.ToString()
-      $out["width"] = [Math]::Max($rect.Right - $rect.Left, 0)
-      $out["height"] = [Math]::Max($rect.Bottom - $rect.Top, 0)
+      $out["targetHwnd"] = $targetPtr.ToInt64().ToString()
     }
     return $out
   }
@@ -456,16 +531,27 @@ function Dispatch-Action($params) {
     $exists = ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr))
     $procMatch = $true
     [uint32]$actualPid = 0
+    $title = ""
     if ($exists) {
       [Win32Native]::GetWindowThreadProcessId($targetPtr, [ref]$actualPid) | Out-Null
       if ($params.expectedPid -and [int]$params.expectedPid -gt 0) {
         $procMatch = ([int]$actualPid -eq [int]$params.expectedPid)
       }
+      $sb = New-Object System.Text.StringBuilder 512
+      [Win32Native]::GetWindowText($targetPtr, $sb, 512) | Out-Null
+      $title = $sb.ToString()
     }
     $out["success"] = ($exists -and $procMatch)
     $out["exists"] = $exists
+    $out["valid"] = ($exists -and $procMatch)
     $out["pidMatch"] = $procMatch
     $out["actualPid"] = [int]$actualPid
+    $out["title"] = $title
+    if (-not $exists) {
+      $out["reason"] = "Target application window no longer exists or was closed."
+    } elseif (-not $procMatch) {
+      $out["reason"] = "Window PID mismatch: target window belongs to PID $actualPid, but expected PID is $([int]$params.expectedPid)."
+    }
     return $out
   }
 
@@ -491,11 +577,11 @@ function Dispatch-Action($params) {
       $destY = $clientY
 
       if ($childHwnd -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($childHwnd)) {
-        [uint32]$childPid = 0
-        [Win32Native]::GetWindowThreadProcessId($childHwnd, [ref]$childPid) | Out-Null
+        [uint32]$cProcPid = 0
+        [Win32Native]::GetWindowThreadProcessId($childHwnd, [ref]$cProcPid) | Out-Null
         [uint32]$tgtPid = 0
         [Win32Native]::GetWindowThreadProcessId($targetPtr, [ref]$tgtPid) | Out-Null
-        if ($childPid -eq $tgtPid) {
+        if ($cProcPid -eq $tgtPid) {
           $sendHwnd = $childHwnd
           $childPt = New-Object Win32Native+POINT
           $childPt.X = $pt.X

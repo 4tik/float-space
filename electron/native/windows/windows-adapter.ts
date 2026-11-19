@@ -96,6 +96,14 @@ export class WindowsApplicationAdapter implements IApplicationAdapter {
   }
 
   public async getRunningWindows(): Promise<RunningWindowInfo[]> {
+    try {
+      const { Win32WindowEmbedder } = require('./win32-embed');
+      const windows = await Win32WindowEmbedder.getInstance().getRunningWindows(process.pid);
+      if (windows && windows.length > 0) {
+        return windows;
+      }
+    } catch {}
+
     const currentPid = process.pid;
     const psScript = `
       Get-Process | Where-Object {
