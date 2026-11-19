@@ -135,6 +135,15 @@ public class Win32Native {
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetProcessDpiAwarenessContext(IntPtr dpiContext);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern bool QueryFullProcessImageName(IntPtr hProcess, int flags, StringBuilder text, ref int size);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr hObject);
+
     static Win32Native() {
         try {
             // Set Per-Monitor V2 DPI awareness (-4) to guarantee 1:1 sharp pixel rendering
@@ -275,30 +284,72 @@ public class Win32Native {
             GetWindowRect(hWnd, out r);
             int w = r.Right - r.Left;
             int h = r.Bottom - r.Top;
-            if (!iconic && (w < 100 || h < 60 || r.Right <= -10000 || r.Bottom <= -10000)) {
+            if (r.Right <= -10000 || r.Bottom <= -10000 || r.Left <= -10000 || r.Top <= -10000) {
+                iconic = true;
+            }
+            if (!iconic && (w < 80 || h < 40)) {
                 return true;
             }
 
-            string procName = "Application";
+            string procName = "";
             string procPath = "";
             string appName = "";
-            try {
-                using (var p = Process.GetProcessById((int)pid)) {
-                    procName = p.ProcessName;
-                    if (procName == "TextInputHost" || procName == "ShellExperienceHost" ||
-                        procName == "dwm" || procName == "csrss" || procName == "smss" ||
-                        procName == "lsass" || procName == "SystemSettings" ||
-                        procName == "SearchApp" || procName == "StartMenuExperienceHost" ||
-                        procName == "LockApp") {
-                        return true;
+
+            // 1. Query process image path via Win32 OpenProcess with PROCESS_QUERY_LIMITED_INFORMATION (0x1000)
+            // This works reliably across sandboxed processes (Firefox, Chrome, Edge) and standard user applications
+            IntPtr hProc = OpenProcess(0x1000, false, pid);
+            if (hProc != IntPtr.Zero) {
+                try {
+                    var sbPath = new StringBuilder(1024);
+                    int size = sbPath.Capacity;
+                    if (QueryFullProcessImageName(hProc, 0, sbPath, ref size)) {
+                        procPath = sbPath.ToString();
+                        procName = System.IO.Path.GetFileNameWithoutExtension(procPath);
                     }
-                    try {
-                        procPath = p.MainModule.FileName;
-                        appName = p.MainModule.FileVersionInfo.FileDescription;
-                    } catch {}
+                } finally {
+                    CloseHandle(hProc);
                 }
-            } catch {
+            }
+
+            // 2. Fallback to .NET Process inspection if needed
+            if (string.IsNullOrEmpty(procName)) {
+                try {
+                    using (var p = Process.GetProcessById((int)pid)) {
+                        procName = p.ProcessName;
+                        try {
+                            if (string.IsNullOrEmpty(procPath)) procPath = p.MainModule.FileName;
+                        } catch {}
+                    }
+                } catch {}
+            }
+
+            // 3. Fallback based on window class or title (e.g. sandboxed Firefox)
+            if (string.IsNullOrEmpty(procName)) {
+                if (cls == "MozillaWindowClass" || title.Contains("Firefox")) {
+                    procName = "firefox";
+                    appName = "Mozilla Firefox";
+                } else if (cls.Contains("Chrome") || title.Contains("Chrome")) {
+                    procName = "chrome";
+                    appName = "Google Chrome";
+                } else {
+                    procName = "Application";
+                }
+            }
+
+            // Exclude Windows OS internal background shells
+            if (procName == "TextInputHost" || procName == "ShellExperienceHost" ||
+                procName == "dwm" || procName == "csrss" || procName == "smss" ||
+                procName == "lsass" || procName == "SystemSettings" ||
+                procName == "SearchApp" || procName == "StartMenuExperienceHost" ||
+                procName == "LockApp") {
                 return true;
+            }
+
+            if (!string.IsNullOrEmpty(procPath) && System.IO.File.Exists(procPath)) {
+                try {
+                    var fvi = FileVersionInfo.GetVersionInfo(procPath);
+                    appName = fvi.FileDescription;
+                } catch {}
             }
 
             if (string.IsNullOrEmpty(appName)) {

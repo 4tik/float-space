@@ -117,21 +117,21 @@ export const AppShell: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Body - Fills width with no extra wrapper div and no unwanted margins */}
-      <div className="flex-1 flex flex-col overflow-hidden px-4 py-3 w-full space-y-2.5">
+      {/* Main Body - Edge-to-edge container filling available width cleanly */}
+      <div className="flex-1 flex flex-col overflow-hidden px-3 py-2.5 w-full space-y-2">
 
         {/* Active Extended Monitors Bar (if any monitors are active) */}
         {monitors.length > 0 && (
-          <div className="bg-blue-50/70 border border-blue-200/80 rounded-lg p-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="bg-blue-50/70 border border-blue-200/80 rounded-lg p-2 shadow-2xs flex flex-wrap items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md bg-emerald-500/15 text-emerald-800 border border-emerald-600/25 flex items-center justify-center shrink-0">
-                <Tv size={13} />
+              <div className="w-5 h-5 rounded-md bg-emerald-500/15 text-emerald-800 border border-emerald-600/25 flex items-center justify-center shrink-0">
+                <Tv size={12} />
               </div>
               <div>
-                <h2 className="text-[12px] font-semibold text-slate-800 tracking-tight">
+                <h2 className="text-[12px] font-semibold text-slate-800 tracking-tight leading-none">
                   Active Extended Monitors ({monitors.length})
                 </h2>
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-500 mt-0.5">
                   Running in interactive Picture-in-Picture mode
                 </p>
               </div>
@@ -141,7 +141,7 @@ export const AppShell: React.FC = () => {
               {monitors.map((mon) => (
                 <div
                   key={mon.id}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-xs font-medium text-slate-700 shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-xs font-medium text-slate-700 shadow-2xs"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="truncate max-w-[140px]" title={mon.title}>
@@ -168,7 +168,7 @@ export const AppShell: React.FC = () => {
         )}
 
         {/* Search Bar & Running Applications Count */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 w-full">
           <div className="relative flex-1 flex items-center">
             <Search size={13} className="text-slate-400 absolute left-3 pointer-events-none" />
             <input
@@ -188,13 +188,13 @@ export const AppShell: React.FC = () => {
               </button>
             )}
           </div>
-          <div className="px-2.5 py-1 bg-slate-200/70 border border-slate-300/60 rounded-md text-[11px] font-semibold text-slate-600 shrink-0">
+          <div className="px-2.5 py-1.5 bg-slate-200/70 border border-slate-300/60 rounded-md text-[11px] font-semibold text-slate-600 shrink-0">
             {filteredWindows.length} Apps Detected
           </div>
         </div>
 
         {/* Running Applications List - Edge-to-edge container filling available width */}
-        <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5">
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 w-full">
           {filteredWindows.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-lg p-8 text-center flex flex-col items-center justify-center shadow-2xs">
               <p className="text-xs font-medium text-slate-500">

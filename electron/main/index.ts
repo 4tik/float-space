@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen, session, desktopCapturer, webContents } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, session, desktopCapturer, webContents, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { DatabaseService } from '../database/db';
@@ -10,8 +10,35 @@ import { Win32WindowEmbedder } from '../native/windows/win32-embed';
 import { LoggerService } from '../services/logger.service';
 import { IPC_CHANNELS } from '../ipc/channels';
 
+// Set Windows AppUserModelId so taskbar grouping, pinning, and application icon display correctly
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.floatspace.desktop');
+}
+
 // Allow getDisplayMedia without user gesture in floating monitors
 app.commandLine.appendSwitch('disable-features', 'DisplayMediaRequiresUserAction');
+
+export function getAppIcon(): Electron.NativeImage | undefined {
+  const candidates = [
+    path.join(__dirname, 'assets', 'icon.png'),
+    path.join(__dirname, 'assets', 'icon.ico'),
+    path.join(__dirname, '../../build', 'icon.png'),
+    path.join(__dirname, '../../build', 'icon.ico'),
+    path.join(__dirname, '../../public', 'icon.png'),
+    path.join(process.cwd(), 'build', 'icon.ico'),
+    path.join(process.cwd(), 'build', 'icon.png'),
+    path.join(process.cwd(), 'public', 'icon.png'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      try {
+        const img = nativeImage.createFromPath(c);
+        if (!img.isEmpty()) return img;
+      } catch {}
+    }
+  }
+  return undefined;
+}
 
 const logger = LoggerService.getInstance();
 let mainWindow: BrowserWindow | null = null;
@@ -221,7 +248,7 @@ if (!gotTheLock) {
 }
 
 function createSplashWindow(): void {
-  const iconPath = path.join(__dirname, '../../build/icon.png');
+  const appIcon = getAppIcon();
   splashWindow = new BrowserWindow({
     width: 380,
     height: 280,
@@ -233,7 +260,7 @@ function createSplashWindow(): void {
     transparent: true,
     backgroundColor: '#00000000',
     title: 'Float-Space',
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: appIcon,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -255,7 +282,7 @@ function createSplashWindow(): void {
 function createMainWindow(): void {
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   const preloadPath = path.join(__dirname, '../preload/index.js');
-  const iconPath = path.join(__dirname, '../../build/icon.png');
+  const appIcon = getAppIcon();
 
   mainWindow = new BrowserWindow({
     width: 1040,
@@ -268,7 +295,7 @@ function createMainWindow(): void {
     hasShadow: true,
     backgroundColor: '#F8F9FA',
     title: 'Float-Space',
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: appIcon,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

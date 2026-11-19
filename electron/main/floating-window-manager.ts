@@ -1,5 +1,6 @@
 import { BrowserWindow, screen, app } from 'electron';
 import * as path from 'path';
+import { getAppIcon } from './index';
 import { FloatingWindowConfig } from '../../src/types/floating-monitor';
 import { DisplayMode } from '../../src/types/application';
 import { DatabaseService } from '../database/db';
@@ -183,6 +184,7 @@ export class FloatingWindowManager {
         backgroundColor: '#FFFFFF',
         hasShadow: true,
         alwaysOnTop: config.alwaysOnTop,
+        icon: getAppIcon(),
         movable: !config.isLocked,
         resizable: !config.isLocked,
         skipTaskbar: false,
@@ -349,7 +351,7 @@ export class FloatingWindowManager {
       if (config.originalEditorHwnd && process.platform === 'win32') {
         try {
           await Win32WindowEmbedder.getInstance().detach(config.originalEditorHwnd);
-        } catch {}
+        } catch { }
       }
     });
 
@@ -430,7 +432,7 @@ export class FloatingWindowManager {
             currentConfig.title = 'PowerPoint Slide Show';
             this.updateConfig(currentConfig);
             this.broadcastStateChange(currentConfig);
-            await Win32WindowEmbedder.getInstance().focusWindow(presHwnd).catch(() => {});
+            await Win32WindowEmbedder.getInstance().focusWindow(presHwnd).catch(() => { });
           }
         }
         // Case B: PowerPoint exited Slide Show, restore original presentation editor window
@@ -461,7 +463,7 @@ export class FloatingWindowManager {
             currentConfig.title = currentConfig.appName || 'Microsoft PowerPoint';
             this.updateConfig(currentConfig);
             this.broadcastStateChange(currentConfig);
-            await Win32WindowEmbedder.getInstance().focusWindow(editorHwnd).catch(() => {});
+            await Win32WindowEmbedder.getInstance().focusWindow(editorHwnd).catch(() => { });
           }
         }
       } catch (err) {
