@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { FloatingToolbar } from './FloatingToolbar';
 import { LiveCapturePreview } from './LiveCapturePreview';
 import { FloatingWebMonitor } from './FloatingWebMonitor';
-import { VirtualMonitorRenderer } from '../virtual-monitor/VirtualMonitorRenderer';
 import { FloatingWindowConfig } from '../../types/floating-monitor';
 import { ipcClient } from '../../services/ipc-client';
 import { AlertCircle, ExternalLink, RefreshCw, Eye } from 'lucide-react';
@@ -91,13 +90,6 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
         {config.displayMode === 'web' ? (
           // Secure Web Monitor
           <FloatingWebMonitor url={config.url} title={config.title} />
-        ) : config.displayMode === 'virtual-display' ? (
-          // High-Performance Virtual Extended Display (Display 2)
-          <VirtualMonitorRenderer
-            key={captureKey}
-            sourceId={config.sourceWindowId}
-            isPaused={isPaused}
-          />
         ) : isEmbedded ? (
           config.isInteractive ? (
             // Native Window Embedding Container

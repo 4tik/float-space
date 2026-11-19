@@ -7,7 +7,6 @@ import { DatabaseService } from '../database/db';
 import { SnapPosition } from '../../src/types/display';
 import { LoggerService } from '../services/logger.service';
 import { Win32WindowEmbedder } from '../native/windows/win32-embed';
-import { VirtualDisplayService } from '../services/virtual-display.service';
 
 export function registerIpcHandlers(): void {
   const windowManager = FloatingWindowManager.getInstance();
@@ -108,61 +107,7 @@ export function registerIpcHandlers(): void {
     return displays;
   });
 
-  // Virtual Extended Monitor Subsystem
-  const virtualDisplayService = VirtualDisplayService.getInstance();
 
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_GET_STATUS, async () => {
-    return await virtualDisplayService.getStatus();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_CREATE, async (_, { width, height }: { width?: number; height?: number } = {}) => {
-    return await virtualDisplayService.createVirtualDisplay(width, height);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_ENABLE, async () => {
-    return await virtualDisplayService.enableVirtualDisplay();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_DISABLE, async () => {
-    return await virtualDisplayService.disableVirtualDisplay();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_SET_RESOLUTION, async (_, { width, height }: { width: number; height: number }) => {
-    return await virtualDisplayService.setTargetResolution(width, height);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_MOVE_APP, async (_, { hwnd, title, appName, processId, maximize }) => {
-    return await virtualDisplayService.moveAppToVirtual(hwnd, { title, appName, processId, maximize });
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_RETURN_APP, async (_, hwnd: string) => {
-    return await virtualDisplayService.returnAppToPrimary(hwnd);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_GET_APPS, () => {
-    return virtualDisplayService.getAppsOnVirtual();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_GET_SOURCE_ID, async () => {
-    return await virtualDisplayService.getVirtualDisplaySourceId();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_LAUNCH, async () => {
-    const sourceId = await virtualDisplayService.getVirtualDisplaySourceId();
-    return await windowManager.createWindow({
-      title: 'Virtual Extended Display (Display 2)',
-      displayMode: 'virtual-display',
-      sourceWindowId: sourceId || undefined,
-      width: 720,
-      height: 440,
-      alwaysOnTop: true,
-      opacity: 1.0,
-    }, true);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VIRTUAL_DISPLAY_FORWARD_INPUT, async (_, event) => {
-    return await virtualDisplayService.forwardVirtualInput(event);
-  });
 
   // Applications
   ipcMain.handle(IPC_CHANNELS.APP_GET_INSTALLED, async () => {

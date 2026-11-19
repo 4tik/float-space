@@ -410,9 +410,9 @@ function Dispatch-Action($params) {
   }
 
   if ($action -eq "resolve_window") {
-    [uint32]$pid = 0
-    if ($processId -gt 0) { $pid = [uint32]$processId }
-    $resHwnd = [Win32Native]::FindBestWindowForProcess($pid, $title, $targetPtr)
+    [uint32]$targetProcId = 0
+    if ($processId -gt 0) { $targetProcId = [uint32]$processId }
+    $resHwnd = [Win32Native]::FindBestWindowForProcess($targetProcId, $title, $targetPtr)
     if ($resHwnd -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($resHwnd)) {
       [uint32]$outPid = 0
       $childThread = [Win32Native]::GetWindowThreadProcessId($resHwnd, [ref]$outPid)
@@ -553,50 +553,6 @@ function Dispatch-Action($params) {
     return $out
   }
 
-  if ($action -eq "move_to_display") {
-    if ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr)) {
-      # 1. Query original rect so caller can store it
-      $origRect = New-Object Win32Native+RECT
-      [Win32Native]::GetWindowRect($targetPtr, [ref]$origRect) | Out-Null
-      $out["origX"] = $origRect.Left
-      $out["origY"] = $origRect.Top
-      $out["origWidth"] = [Math]::Max($origRect.Right - $origRect.Left, 200)
-      $out["origHeight"] = [Math]::Max($origRect.Bottom - $origRect.Top, 150)
-
-      # 2. Restore if minimized
-      [Win32Native]::ShowWindow($targetPtr, 9) | Out-Null # SW_RESTORE
-
-      # 3. Position window at target bounds on Virtual Display
-      # SWP_SHOWWINDOW (0x0040) | SWP_FRAMECHANGED (0x0020)
-      [Win32Native]::SetWindowPos($targetPtr, [IntPtr]::Zero, $x, $y, $width, $height, 0x0040 -bor 0x0020) | Out-Null
-
-      if ($maximize) {
-        [Win32Native]::ShowWindow($targetPtr, 3) | Out-Null # SW_MAXIMIZE
-      } else {
-        [Win32Native]::ShowWindow($targetPtr, 5) | Out-Null # SW_SHOW
-      }
-      [Win32Native]::UpdateWindow($targetPtr) | Out-Null
-      [Win32Native]::SetForegroundWindow($targetPtr) | Out-Null
-
-      $out["success"] = $true
-      $out["message"] = "Moved window $($targetPtr.ToInt64().ToString()) to display bounds ($x, $y, $width, $height)"
-    }
-    return $out
-  }
-
-  if ($action -eq "return_from_display") {
-    if ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr)) {
-      [Win32Native]::ShowWindow($targetPtr, 9) | Out-Null # SW_RESTORE
-      [Win32Native]::SetWindowPos($targetPtr, [IntPtr]::Zero, $x, $y, $width, $height, 0x0040 -bor 0x0020) | Out-Null
-      [Win32Native]::ShowWindow($targetPtr, 5) | Out-Null # SW_SHOW
-      [Win32Native]::SetForegroundWindow($targetPtr) | Out-Null
-      [Win32Native]::UpdateWindow($targetPtr) | Out-Null
-      $out["success"] = $true
-      $out["message"] = "Returned window $($targetPtr.ToInt64().ToString()) to primary desktop ($x, $y, $width, $height)"
-    }
-    return $out
-  }
-
   if ($action -eq "get_window_rect") {
     if ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr)) {
       $rect = New-Object Win32Native+RECT
@@ -607,68 +563,6 @@ function Dispatch-Action($params) {
       $out["width"] = [Math]::Max($rect.Right - $rect.Left, 100)
       $out["height"] = [Math]::Max($rect.Bottom - $rect.Top, 100)
     }
-    return $out
-  }
-
-  if ($action -eq "virtual_screen_input") {
-    # Position cursor on virtual display
-    [Win32Native]::SetCursorPos($screenX, $screenY) | Out-Null
-
-    # Identify window under cursor on virtual display
-    $pt = New-Object Win32Native+POINT
-    $pt.X = $screenX
-    $pt.Y = $screenY
-    $targetUnderCursor = [Win32Native]::WindowFromPoint($pt)
-
-    if ($inputType -eq "move") {
-      [Win32Native]::mouse_event(0x0001, 0, 0, 0, [UIntPtr]::Zero) # MOUSEEVENTF_MOVE
-    }
-    elseif ($inputType -eq "click" -or $inputType -eq "mouse_down") {
-      if ($targetUnderCursor -ne [IntPtr]::Zero) {
-        [Win32Native]::SetForegroundWindow($targetUnderCursor) | Out-Null
-      }
-      [Win32Native]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero) # MOUSEEVENTF_LEFTDOWN
-      if ($inputType -eq "click") {
-        [Win32Native]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero) # MOUSEEVENTF_LEFTUP
-      }
-    }
-    elseif ($inputType -eq "mouse_up") {
-      [Win32Native]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero) # MOUSEEVENTF_LEFTUP
-    }
-    elseif ($inputType -eq "double_click") {
-      if ($targetUnderCursor -ne [IntPtr]::Zero) {
-        [Win32Native]::SetForegroundWindow($targetUnderCursor) | Out-Null
-      }
-      [Win32Native]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-      [Win32Native]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-      [Win32Native]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
-      [Win32Native]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-    }
-    elseif ($inputType -eq "context_menu" -or $inputType -eq "right_click") {
-      if ($targetUnderCursor -ne [IntPtr]::Zero) {
-        [Win32Native]::SetForegroundWindow($targetUnderCursor) | Out-Null
-      }
-      [Win32Native]::mouse_event(0x0008, 0, 0, 0, [UIntPtr]::Zero) # MOUSEEVENTF_RIGHTDOWN
-      [Win32Native]::mouse_event(0x0010, 0, 0, 0, [UIntPtr]::Zero) # MOUSEEVENTF_RIGHTUP
-    }
-    elseif ($inputType -eq "wheel") {
-      $wheelDelta = [int]$deltaY * -1
-      if ($wheelDelta -eq 0) { $wheelDelta = 120 }
-      [Win32Native]::mouse_event(0x0800, 0, 0, [uint32]$wheelDelta, [UIntPtr]::Zero) # MOUSEEVENTF_WHEEL
-    }
-    elseif ($inputType -eq "key") {
-      if ($keyCode -gt 0) {
-        [Win32Native]::keybd_event([byte]$keyCode, 0, 0, [UIntPtr]::Zero) # KeyDown
-        [Win32Native]::keybd_event([byte]$keyCode, 0, 2, [UIntPtr]::Zero) # KeyUp
-      }
-    }
-    elseif ($inputType -eq "char") {
-      if ($targetUnderCursor -ne [IntPtr]::Zero -and $charCode -gt 0) {
-        [Win32Native]::PostMessage($targetUnderCursor, 0x0102, [IntPtr]$charCode, [IntPtr]1) | Out-Null # WM_CHAR
-      }
-    }
-
-    $out["success"] = $true
     return $out
   }
 

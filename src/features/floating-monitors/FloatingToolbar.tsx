@@ -71,14 +71,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
               <Globe size={9} className="text-indigo-600" />
               <span>Web</span>
             </span>
-          ) : config.displayMode === 'virtual-display' ? (
-            <span
-              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-[4px] text-[9px] font-semibold tracking-wide uppercase border bg-emerald-500/15 text-emerald-900 border-emerald-600/25"
-              title="Virtual Extended Display: Live 60 FPS desktop with full mouse & keyboard control"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Virtual Display</span>
-            </span>
           ) : (
             <span
               className={cn(

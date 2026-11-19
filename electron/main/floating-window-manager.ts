@@ -88,12 +88,10 @@ export class FloatingWindowManager {
       url: inputConfig.url,
       title: inputConfig.title || (inputConfig.url ? new URL(inputConfig.url).hostname : 'Floating Monitor'),
       displayMode: inputConfig.displayMode || (inputConfig.url ? 'web' : (process.platform === 'win32' ? 'embedded' : 'live-monitor')),
-      isInteractive: inputConfig.displayMode === 'web' || inputConfig.displayMode === 'embedded' || inputConfig.displayMode === 'virtual-display',
+      isInteractive: inputConfig.displayMode === 'web' || inputConfig.displayMode === 'embedded',
       interactionMessage:
         inputConfig.displayMode === 'web'
           ? 'Web Monitor Active'
-          : inputConfig.displayMode === 'virtual-display'
-          ? 'Virtual Extended Monitor: Live 60 FPS desktop with full mouse & keyboard control'
           : undefined,
       positionX: inputConfig.positionX ?? 100 + (this.windows.size * 30),
       positionY: inputConfig.positionY ?? 100 + (this.windows.size * 30),
@@ -236,10 +234,6 @@ export class FloatingWindowManager {
             ? 'macOS WindowServer prevents cross-process window reparenting. Running in Visual Monitor mode.'
             : 'Visual Monitor active.';
       }
-    } else if (config.displayMode === 'virtual-display') {
-      config.isInteractive = true;
-      config.interactionMessage =
-        'Virtual Extended Display: High performance 60 FPS desktop with full mouse & keyboard';
     } else {
       config.isInteractive = false;
       config.interactionMessage = 'Visual Monitor active. Click Focus Original to control the source window.';

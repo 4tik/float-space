@@ -447,56 +447,6 @@ export class Win32WindowEmbedder {
     return !!res?.success;
   }
 
-  public async moveWindowToDisplay(
-    targetHwnd: string,
-    bounds: { x: number; y: number; width: number; height: number; maximize?: boolean }
-  ): Promise<{ success: boolean; origBounds?: { x: number; y: number; width: number; height: number } }> {
-    if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') {
-      return { success: false };
-    }
-
-    const res = await this.executeCommand({
-      action: 'move_to_display',
-      targetHwnd,
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
-      maximize: !!bounds.maximize,
-    });
-
-    if (res && res.success) {
-      return {
-        success: true,
-        origBounds: {
-          x: res.origX,
-          y: res.origY,
-          width: res.origWidth,
-          height: res.origHeight,
-        },
-      };
-    }
-    return { success: false };
-  }
-
-  public async returnWindowFromDisplay(
-    targetHwnd: string,
-    bounds: { x: number; y: number; width: number; height: number }
-  ): Promise<boolean> {
-    if (!Win32WindowEmbedder.isSupported() || !targetHwnd || targetHwnd === '0') return false;
-
-    const res = await this.executeCommand({
-      action: 'return_from_display',
-      targetHwnd,
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
-    });
-
-    return !!res?.success;
-  }
-
   public async getWindowRect(
     targetHwnd: string
   ): Promise<{ success: boolean; x?: number; y?: number; width?: number; height?: number }> {
@@ -510,30 +460,5 @@ export class Win32WindowEmbedder {
     });
 
     return res || { success: false };
-  }
-
-  public async injectVirtualScreenInput(event: {
-    screenX: number;
-    screenY: number;
-    inputType: 'click' | 'mouse_down' | 'mouse_up' | 'double_click' | 'context_menu' | 'wheel' | 'move' | 'char' | 'key';
-    deltaX?: number;
-    deltaY?: number;
-    charCode?: number;
-    keyCode?: number;
-  }): Promise<boolean> {
-    if (!Win32WindowEmbedder.isSupported()) return false;
-
-    const res = await this.executeCommand({
-      action: 'virtual_screen_input',
-      screenX: Math.round(event.screenX),
-      screenY: Math.round(event.screenY),
-      inputType: event.inputType,
-      deltaX: Math.round(event.deltaX ?? 0),
-      deltaY: Math.round(event.deltaY ?? 0),
-      charCode: event.charCode ?? 0,
-      keyCode: event.keyCode ?? 0,
-    });
-
-    return !!res?.success;
   }
 }
