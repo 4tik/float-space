@@ -2,28 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Native macOS San Francisco / Inter Typography Stack */
+/* Modern Windows Native Typography Stack (Segoe UI Variable & Inter) */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif;
+  font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter", "Roboto", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .font-mono {
-  font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+  font-family: "Cascadia Code", "Consolas", "SF Mono", "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* Subtle macOS Sonoma/Sequoia Warm Sand Mist Wallpaper */
-.macos-wallpaper {
-  background-color: #E7E1D8;
+/* Windows 11 Fluent / Mica Surface Canvas */
+.windows-mica-bg {
+  background-color: #F3F3F3;
   background-image:
-    radial-gradient(at 14% 18%, rgba(247, 236, 222, 0.95) 0px, transparent 52%),
-    radial-gradient(at 86% 16%, rgba(226, 217, 205, 0.85) 0px, transparent 48%),
-    radial-gradient(at 78% 84%, rgba(214, 203, 189, 0.9) 0px, transparent 55%),
-    radial-gradient(at 20% 82%, rgba(238, 228, 214, 0.9) 0px, transparent 50%);
+    radial-gradient(at 10% 10%, rgba(240, 245, 255, 0.8) 0px, transparent 50%),
+    radial-gradient(at 90% 15%, rgba(245, 243, 255, 0.7) 0px, transparent 45%),
+    radial-gradient(at 80% 85%, rgba(235, 245, 255, 0.75) 0px, transparent 50%),
+    radial-gradient(at 20% 80%, rgba(248, 250, 252, 0.9) 0px, transparent 50%);
 }
 
-/* Native macOS Overlay Scrollbars */
+/* Modern Windows 11 Auto-Thin Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -32,52 +32,15 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(120, 113, 108, 0.25);
+  background: rgba(148, 163, 184, 0.4);
   border-radius: 9999px;
+  transition: background 0.15s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(120, 113, 108, 0.45);
+  background: rgba(100, 116, 139, 0.65);
 }
 
-/* Native macOS Precision Slider */
-input[type="range"].macos-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-input[type="range"].macos-slider::-webkit-slider-runnable-track {
-  height: 3.5px;
-  border-radius: 9999px;
-  background: #D6D0C7;
-}
-input[type="range"].macos-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 14px;
-  width: 14px;
-  border-radius: 9999px;
-  background: #FFFFFF;
-  border: 0.5px solid rgba(0, 0, 0, 0.18);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24), 0 0 1px rgba(0, 0, 0, 0.12);
-  margin-top: -5.25px;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-input[type="range"].macos-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.08);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.28);
-}
-input[type="range"].macos-slider:active::-webkit-slider-thumb {
-  background: #F5F4F0;
-  transform: scale(0.98);
-}
-
-/* Traffic Light Glyph Hover Reveal */
-.traffic-lights:hover .traffic-glyph {
-  opacity: 1;
-}
-
-/* Electron window dragging */
+/* Electron Window Drag Regions */
 .app-drag-region {
   -webkit-app-region: drag;
   user-select: none;
@@ -87,33 +50,37 @@ input[type="range"].macos-slider:active::-webkit-slider-thumb {
   -webkit-app-region: no-drag;
 }
 
-/* macOS vibrant frosted glass surfaces */
-.mac-window-frame {
-  background: #FAF9F6;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  box-shadow: 0 24px 60px -12px rgba(28, 25, 23, 0.22), 0 0 1px 1px rgba(255, 255, 255, 0.65) inset;
+/* Fluent Card Surface Elevation */
+.fluent-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
 }
 
-.mac-titlebar {
-  background: rgba(245, 244, 240, 0.88);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+.fluent-card-hover {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease;
+}
+.fluent-card-hover:hover {
+  border-color: rgba(0, 103, 192, 0.4);
+  box-shadow: 0 4px 12px -2px rgba(0, 103, 192, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
 }
 
-.mac-sidebar {
-  background: rgba(245, 244, 240, 0.92);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-right: 1px solid rgba(0, 0, 0, 0.08);
+/* Material 3 Focus Rings */
+.focus-m3 {
+  outline: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.focus-m3:focus-visible {
+  border-color: #0067C0;
+  box-shadow: 0 0 0 2px rgba(0, 103, 192, 0.25);
 }
 
-/* Animation utilities */
+/* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

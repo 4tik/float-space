@@ -28,7 +28,7 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
 
   if (!config) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#FAF9F6] text-stone-500 text-xs font-medium">
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-50 text-slate-500 text-xs font-medium">
         Loading extended monitor...
       </div>
     );
@@ -48,7 +48,7 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden select-none bg-transparent">
-      {/* Top Floating Toolbar with Essential Controls: Traffic Lights + Title + Pin */}
+      {/* Top Floating Toolbar with Windows Caption Controls & Pin */}
       {!config.hideToolbar && (
         <FloatingToolbar
           config={config}
@@ -65,23 +65,23 @@ export const FloatingMonitorWindow: React.FC<FloatingMonitorWindowProps> = ({ wi
           // The embedded native application window is attached at (0, 32)
           <div className="flex-1 w-full h-full relative bg-transparent pointer-events-none" />
         ) : (
-          <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#FAF9F6]">
-            <div className="w-11 h-11 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center mb-3">
-              <AlertCircle size={22} />
+          <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-6 text-center bg-slate-50">
+            <div className="w-12 h-12 rounded-full bg-blue-500/10 text-[#0067C0] flex items-center justify-center mb-3">
+              <AlertCircle size={24} />
             </div>
-            <h3 className="text-sm font-semibold text-[#1D1D1F] mb-1">
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">
               Window Integration Notice
             </h3>
-            <p className="text-xs text-stone-500 max-w-sm mb-4 leading-relaxed">
+            <p className="text-xs text-slate-500 max-w-sm mb-4 leading-relaxed">
               {config.interactionMessage ||
                 'The selected application window could not be embedded into this monitor.'}
             </p>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleFocusSource}
-                className="px-3 py-1.5 text-xs font-medium text-amber-900 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-600/30 rounded-[6px] transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all cursor-pointer flex items-center gap-1.5"
               >
-                <ExternalLink size={11} />
+                <ExternalLink size={12} />
                 <span>Focus On Desktop</span>
               </button>
             </div>

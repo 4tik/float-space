@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '../../utils/cn';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'tonal' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   icon?: React.ReactNode;
 }
@@ -17,23 +17,25 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    'inline-flex items-center justify-center font-medium rounded-[6px] transition-all duration-150 select-none focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed app-no-drag cursor-pointer';
+    'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0067C0]/40 disabled:opacity-50 disabled:cursor-not-allowed app-no-drag cursor-pointer active:scale-[0.98]';
 
   const variantClasses = {
     primary:
-      'bg-[#1D1D1F] hover:bg-black active:brightness-95 text-[#FAF9F6] shadow-[0_1px_2px_rgba(0,0,0,0.12)] border border-[#1D1D1F]',
+      'bg-[#0067C0] hover:bg-[#005FB8] text-white shadow-sm border border-[#005FB8]/50',
     secondary:
-      'bg-white hover:bg-stone-50 active:bg-stone-100 text-[#1D1D1F] border border-black/[0.1] shadow-[0_1px_1px_rgba(0,0,0,0.03)]',
+      'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 shadow-2xs',
+    tonal:
+      'bg-blue-50 hover:bg-blue-100 text-[#0067C0] border border-blue-200/60',
     ghost:
-      'bg-transparent hover:bg-black/[0.05] text-stone-700',
+      'bg-transparent hover:bg-slate-100 text-slate-700',
     danger:
-      'bg-white text-[#C92A22] hover:bg-[#FF5F56]/10 border border-[#FF5F56]/30 shadow-[0_1px_1px_rgba(0,0,0,0.03)]',
+      'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200',
   };
 
   const sizeClasses = {
     sm: 'text-xs px-2.5 py-1 gap-1.5',
-    md: 'text-xs px-3 py-1.5 gap-2',
-    lg: 'text-sm px-4 py-2 gap-2.5',
+    md: 'text-xs px-3.5 py-1.5 gap-2',
+    lg: 'text-sm px-4.5 py-2 gap-2.5',
   };
 
   return (
