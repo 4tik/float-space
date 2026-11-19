@@ -61,6 +61,8 @@ export const AppShell: React.FC = () => {
         sourceWindowId: win.sourceId,
         targetHwnd: win.handle,
         processId: win.processId,
+        executablePath: win.executablePath,
+        appName: win.appName,
         displayMode: 'embedded',
         alwaysOnTop: settings.defaultAlwaysOnTop ?? true,
         opacity: settings.defaultOpacity ?? 1.0,
@@ -69,7 +71,8 @@ export const AppShell: React.FC = () => {
       });
       showToast(`Extended "${win.appName}" into floating monitor`);
     } catch (err: any) {
-      showToast(`Error extending monitor: ${err?.message || err}`);
+      showToast(err?.message || `Error extending monitor: ${err}`);
+      loadApplications();
     }
   };
 

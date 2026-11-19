@@ -1,4 +1,4 @@
-import { exec, spawn, ChildProcess } from 'child_process';
+import { exec, execFile, spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as readline from 'readline';
@@ -16,6 +16,7 @@ function getElectronApp(): any {
 }
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface Win32EmbedResult {
   supported: boolean;
@@ -65,28 +66,18 @@ export class Win32WindowEmbedder {
   }
 
   private ensureScript(): string {
-    if (this.scriptPath && fs.existsSync(this.scriptPath)) {
+    if (this.scriptPath && fs.existsSync(this.scriptPath) && !this.scriptPath.includes('app.asar')) {
       return this.scriptPath;
     }
 
-    const candidatePaths = [
-      path.join(__dirname, 'scripts', 'win32-bridge.ps1'),
-      path.join(__dirname, 'win32-bridge.ps1'),
-      path.join(process.cwd(), 'electron', 'native', 'windows', 'scripts', 'win32-bridge.ps1'),
-      path.join(process.cwd(), 'dist', 'electron', 'native', 'windows', 'scripts', 'win32-bridge.ps1'),
-    ];
-
-    for (const p of candidatePaths) {
-      if (fs.existsSync(p)) {
-        this.scriptPath = p;
-        return this.scriptPath;
-      }
-    }
-
+    // Always prefer writing to real physical user directory outside any asar archive
     try {
       const electronApp = getElectronApp();
-      const userData = electronApp?.getPath ? electronApp.getPath('userData') : process.cwd();
-      const targetDir = path.join(userData, 'scripts');
+      const userData =
+        (electronApp && typeof electronApp.getPath === 'function' && electronApp.getPath('userData')) ||
+        process.env.APPDATA ||
+        process.cwd();
+      const targetDir = path.join(userData, 'Float-Space', 'scripts');
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
@@ -95,14 +86,28 @@ export class Win32WindowEmbedder {
       this.scriptPath = targetFile;
       return this.scriptPath;
     } catch (err) {
-      this.logger.error('Win32WindowEmbedder', 'Failed to resolve win32-bridge.ps1', err);
-      return candidatePaths[0];
+      this.logger.error('Win32WindowEmbedder', 'Failed to write win32-bridge.ps1 to userData directory', err);
     }
+
+    const candidatePaths = [
+      path.join(__dirname.replace('app.asar', 'app.asar.unpacked'), 'scripts', 'win32-bridge.ps1'),
+      path.join(process.cwd(), 'electron', 'native', 'windows', 'scripts', 'win32-bridge.ps1'),
+      path.join(process.cwd(), 'dist', 'electron', 'native', 'windows', 'scripts', 'win32-bridge.ps1'),
+    ];
+
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p) && !p.includes('app.asar')) {
+        this.scriptPath = p;
+        return this.scriptPath;
+      }
+    }
+
+    return candidatePaths[0];
   }
 
   private initDaemon(): void {
     const script = this.ensureScript();
-    if (!fs.existsSync(script)) return;
+    if (!fs.existsSync(script) || script.includes('app.asar')) return;
 
     try {
       this.daemonProcess = spawn(
@@ -161,26 +166,47 @@ export class Win32WindowEmbedder {
   private async executeCommand(payload: any): Promise<any> {
     if (this.daemonProcess && this.isDaemonReady && this.daemonProcess.stdin && !this.daemonProcess.killed) {
       return new Promise((resolve, reject) => {
-        this.pendingRequests.push({ resolve, reject });
+        const timeout = setTimeout(() => {
+          const idx = this.pendingRequests.findIndex((p) => p.resolve === resolve);
+          if (idx !== -1) {
+            this.pendingRequests.splice(idx, 1);
+            resolve({ success: false, error: 'Command timed out' });
+          }
+        }, 10000);
+
+        this.pendingRequests.push({
+          resolve: (val) => {
+            clearTimeout(timeout);
+            resolve(val);
+          },
+          reject: (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          },
+        });
+
         try {
           this.daemonProcess!.stdin!.write(JSON.stringify(payload) + '\n');
         } catch (e) {
+          clearTimeout(timeout);
           this.pendingRequests.pop();
           reject(e);
         }
       });
     }
 
-    // Fallback: one-shot execution if daemon isn't ready
+    // Fallback: one-shot execution with execFile (clean arguments, no shell expansion bugs)
     const script = this.ensureScript();
-    const args: string[] = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', `"${script}"`];
+    const args: string[] = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script];
     for (const [k, v] of Object.entries(payload)) {
+      if (v === undefined || v === null) continue;
       const capKey = k.charAt(0).toUpperCase() + k.slice(1);
-      args.push(`-${capKey} "${v}"`);
+      args.push(`-${capKey}`);
+      args.push(String(v));
     }
 
     try {
-      const { stdout } = await execAsync(`powershell ${args.join(' ')}`);
+      const { stdout } = await execFileAsync('powershell.exe', args, { windowsHide: true });
       return JSON.parse(stdout.trim());
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -438,6 +464,76 @@ export class Win32WindowEmbedder {
     }
 
     return { valid: true, actualPid: res.actualPid, title: res.title };
+  }
+
+  public async findCurrentWindowForApplication(criteria: {
+    processId?: number;
+    executablePath?: string;
+    appName?: string;
+    title?: string;
+  }): Promise<RunningWindowInfo | null> {
+    if (!Win32WindowEmbedder.isSupported()) return null;
+
+    try {
+      const currentWindows = await this.getRunningWindows();
+      if (!currentWindows || currentWindows.length === 0) return null;
+
+      // 1. Primary check: exact PID match
+      if (criteria.processId && criteria.processId > 0) {
+        const pidMatches = currentWindows.filter((w) => w.processId === criteria.processId);
+        if (pidMatches.length === 1) return pidMatches[0];
+        if (pidMatches.length > 1) {
+          if (criteria.title) {
+            const titleMatch = pidMatches.find(
+              (w) =>
+                w.title.toLowerCase() === criteria.title!.toLowerCase() ||
+                w.title.toLowerCase().includes(criteria.title!.toLowerCase().slice(0, 15))
+            );
+            if (titleMatch) return titleMatch;
+          }
+          return pidMatches[0];
+        }
+      }
+
+      // 2. Secondary check: if app was restarted (new PID), match by exact executablePath
+      if (criteria.executablePath) {
+        const exeMatches = currentWindows.filter(
+          (w) =>
+            w.executablePath &&
+            w.executablePath.toLowerCase() === criteria.executablePath!.toLowerCase()
+        );
+        if (exeMatches.length === 1) return exeMatches[0];
+        if (exeMatches.length > 1) {
+          if (criteria.title) {
+            const titleMatch = exeMatches.find(
+              (w) =>
+                w.title.toLowerCase() === criteria.title!.toLowerCase() ||
+                w.title.toLowerCase().includes(criteria.title!.toLowerCase().slice(0, 15))
+            );
+            if (titleMatch) return titleMatch;
+          }
+          return exeMatches[0];
+        }
+      }
+
+      // 3. Tertiary check: match by exact application name
+      if (criteria.appName && criteria.appName !== 'Application') {
+        const appMatches = currentWindows.filter(
+          (w) => w.appName.toLowerCase() === criteria.appName!.toLowerCase()
+        );
+        if (appMatches.length === 1) return appMatches[0];
+        if (appMatches.length > 1 && criteria.title) {
+          const titleMatch = appMatches.find((w) =>
+            w.title.toLowerCase().includes(criteria.title!.toLowerCase().slice(0, 15))
+          );
+          if (titleMatch) return titleMatch;
+        }
+      }
+    } catch (err) {
+      this.logger.error('Win32WindowEmbedder', 'Error searching for current application window', err);
+    }
+
+    return null;
   }
 
   public async forwardInput(

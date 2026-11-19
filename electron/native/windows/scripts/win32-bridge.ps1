@@ -16,6 +16,7 @@ param(
   [Parameter(Mandatory=$false)][int]$OrigWidth = 0,
   [Parameter(Mandatory=$false)][int]$OrigHeight = 0,
   [Parameter(Mandatory=$false)][int]$ProcessId = 0,
+  [Parameter(Mandatory=$false)][int]$ExpectedPid = 0,
   [Parameter(Mandatory=$false)][string]$Title = "",
   [Parameter(Mandatory=$false)][string]$InputType = "click",
   [Parameter(Mandatory=$false)][double]$NormX = 0.5,
@@ -319,13 +320,19 @@ function Dispatch-Action($params) {
   $keyCode = if ($null -ne $params.keyCode) { [int]$params.keyCode } else { [int]$params.KeyCode }
 
   $targetPtr = [IntPtr]::Zero
-  if ($targetHwndStr -and $targetHwndStr -ne "0") {
-    $targetPtr = [IntPtr][long]$targetHwndStr
+  if ($targetHwndStr) {
+    $cleanHwnd = [string]$targetHwndStr -replace '^win-', '' -replace '^window:', '' -replace ':0$', ''
+    if ($cleanHwnd -and $cleanHwnd -ne "0" -and $cleanHwnd -match '^-?\d+$') {
+      $targetPtr = [IntPtr][long]$cleanHwnd
+    }
   }
 
   $parentPtr = [IntPtr]::Zero
-  if ($parentHwndStr -and $parentHwndStr -ne "0") {
-    $parentPtr = [IntPtr][long]$parentHwndStr
+  if ($parentHwndStr) {
+    $cleanParent = [string]$parentHwndStr -replace '^win-', '' -replace '^window:', '' -replace ':0$', ''
+    if ($cleanParent -and $cleanParent -ne "0" -and $cleanParent -match '^-?\d+$') {
+      $parentPtr = [IntPtr][long]$cleanParent
+    }
   }
 
   $out = @{ success = $false; action = $action }
@@ -530,27 +537,41 @@ function Dispatch-Action($params) {
   if ($action -eq "validate") {
     $exists = ($targetPtr -ne [IntPtr]::Zero -and [Win32Native]::IsWindow($targetPtr))
     $procMatch = $true
+    $isProcRunning = $false
     [uint32]$actualPid = 0
     $title = ""
+    $expPid = if ($params.expectedPid) { [int]$params.expectedPid } elseif ($params.processId) { [int]$params.processId } elseif ($ExpectedPid) { [int]$ExpectedPid } else { 0 }
+
     if ($exists) {
       [Win32Native]::GetWindowThreadProcessId($targetPtr, [ref]$actualPid) | Out-Null
-      if ($params.expectedPid -and [int]$params.expectedPid -gt 0) {
-        $procMatch = ([int]$actualPid -eq [int]$params.expectedPid)
+      if ($actualPid -gt 0) {
+        try {
+          $p = [System.Diagnostics.Process]::GetProcessById([int]$actualPid)
+          if (-not $p.HasExited) { $isProcRunning = $true }
+        } catch {}
+      }
+      if ($expPid -gt 0) {
+        $procMatch = ([int]$actualPid -eq $expPid)
       }
       $sb = New-Object System.Text.StringBuilder 512
       [Win32Native]::GetWindowText($targetPtr, $sb, 512) | Out-Null
       $title = $sb.ToString()
     }
-    $out["success"] = ($exists -and $procMatch)
+
+    $isValid = ($exists -and $procMatch -and $isProcRunning)
+    $out["success"] = $isValid
     $out["exists"] = $exists
-    $out["valid"] = ($exists -and $procMatch)
+    $out["valid"] = $isValid
+    $out["isProcessRunning"] = $isProcRunning
     $out["pidMatch"] = $procMatch
     $out["actualPid"] = [int]$actualPid
     $out["title"] = $title
     if (-not $exists) {
       $out["reason"] = "Target application window no longer exists or was closed."
+    } elseif (-not $isProcRunning) {
+      $out["reason"] = "Target application process has exited."
     } elseif (-not $procMatch) {
-      $out["reason"] = "Window PID mismatch: target window belongs to PID $actualPid, but expected PID is $([int]$params.expectedPid)."
+      $out["reason"] = "Window PID mismatch: target window belongs to PID $actualPid, but expected PID is $expPid."
     }
     return $out
   }
@@ -695,6 +716,7 @@ try {
     origWidth = $OrigWidth
     origHeight = $OrigHeight
     processId = $ProcessId
+    expectedPid = if ($ExpectedPid -gt 0) { $ExpectedPid } else { $ProcessId }
     title = $Title
     inputType = $InputType
     normX = $NormX

@@ -122,75 +122,99 @@ export class FloatingWindowManager {
 
     // Validate and synchronize target application window handle before attaching
     if (config.targetHwnd && process.platform === 'win32') {
-      try {
-        const validation = await Win32WindowEmbedder.getInstance().validateWindow(config.targetHwnd, config.processId);
-        if (!validation.valid) {
-          // HWND was stale or anchor handle; re-resolve the exact running window for this application
-          const running = await AppDiscoveryService.getInstance().getRunningWindows();
-          const match = running.find((w: any) =>
-            (config.processId && w.processId === config.processId) ||
-            (w.handle === config.targetHwnd) ||
-            (config.title && w.title.toLowerCase().includes(config.title.toLowerCase().slice(0, 15)))
+      let validation = await Win32WindowEmbedder.getInstance().validateWindow(
+        config.targetHwnd,
+        config.processId
+      );
+
+      // If the HWND is stale or invalid, attempt to find the current valid window for the SAME application
+      if (!validation.valid) {
+        this.logger.warn(
+          'FloatingWindowManager',
+          `Window handle ${config.targetHwnd} not valid (${validation.reason}). Searching for current window...`
+        );
+        const currentWin = await Win32WindowEmbedder.getInstance().findCurrentWindowForApplication({
+          processId: config.processId,
+          executablePath: config.executablePath,
+          appName: config.appName,
+          title: config.title,
+        });
+
+        if (currentWin && currentWin.handle) {
+          this.logger.info(
+            'FloatingWindowManager',
+            `Found active window for application: HWND=${currentWin.handle}, PID=${currentWin.processId}, Title="${currentWin.title}"`
           );
-          if (match && match.handle) {
-            config.targetHwnd = match.handle;
-            config.sourceWindowId = match.sourceId;
-            config.processId = match.processId || config.processId;
-          }
+          config.targetHwnd = currentWin.handle;
+          config.processId = currentWin.processId;
+          config.title = currentWin.title;
+          config.sourceWindowId = currentWin.sourceId;
+          validation = await Win32WindowEmbedder.getInstance().validateWindow(
+            config.targetHwnd,
+            config.processId
+          );
         }
-        if (config.targetHwnd) {
-          await Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd);
-        }
-      } catch {}
+      }
+
+      if (!validation.valid) {
+        const appLabel = config.appName || config.title || 'selected application';
+        throw new Error(
+          `The window for "${appLabel}" was closed or is no longer available. Please select the application again.`
+        );
+      }
+
+      await Win32WindowEmbedder.getInstance().focusWindow(config.targetHwnd).catch(() => {});
     }
 
     // Create Electron BrowserWindow for Extended Floating Monitor
-    const win = new BrowserWindow({
-      x: config.positionX,
-      y: config.positionY,
-      width: config.width,
-      height: config.height,
-      minWidth: 240,
-      minHeight: 160,
-      frame: false,
-      transparent: true,
-      hasShadow: true,
-      alwaysOnTop: config.alwaysOnTop,
-      movable: !config.isLocked,
-      resizable: !config.isLocked,
-      skipTaskbar: false,
-      webPreferences: {
-        preload: this.preloadPath,
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        backgroundThrottling: false,
-      },
-    });
-
-    win.setOpacity(config.opacity);
-    const webContentsId = win.webContents.id;
-    this.webContentsToTarget.set(webContentsId, {
-      sourceId: config.sourceWindowId,
-      targetHwnd: config.targetHwnd,
-      title: config.title,
-    });
-
-    // Load renderer with windowId
-    const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-    if (isDev && process.env.VITE_DEV_SERVER_URL) {
-      win.loadURL(`${process.env.VITE_DEV_SERVER_URL}?windowId=${id}&mode=monitor`);
-    } else {
-      const rendererPath = path.join(__dirname, '../../renderer/index.html');
-      win.loadFile(rendererPath, {
-        query: { windowId: id, mode: 'monitor' },
+    let win: BrowserWindow | null = null;
+    let webContentsId = 0;
+    try {
+      win = new BrowserWindow({
+        x: config.positionX,
+        y: config.positionY,
+        width: config.width,
+        height: config.height,
+        minWidth: 240,
+        minHeight: 160,
+        frame: false,
+        transparent: true,
+        hasShadow: true,
+        alwaysOnTop: config.alwaysOnTop,
+        movable: !config.isLocked,
+        resizable: !config.isLocked,
+        skipTaskbar: false,
+        webPreferences: {
+          preload: this.preloadPath,
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: false,
+          backgroundThrottling: false,
+        },
       });
-    }
 
-    // Perform native window embedding if requested and supported
-    if (config.targetHwnd && config.displayMode === 'embedded') {
-      if (process.platform === 'win32') {
-        try {
+      win.setOpacity(config.opacity);
+      webContentsId = win.webContents.id;
+      this.webContentsToTarget.set(webContentsId, {
+        sourceId: config.sourceWindowId,
+        targetHwnd: config.targetHwnd,
+        title: config.title,
+      });
+
+      // Load renderer with windowId
+      const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
+      if (isDev && process.env.VITE_DEV_SERVER_URL) {
+        win.loadURL(`${process.env.VITE_DEV_SERVER_URL}?windowId=${id}&mode=monitor`);
+      } else {
+        const rendererPath = path.join(__dirname, '../../renderer/index.html');
+        win.loadFile(rendererPath, {
+          query: { windowId: id, mode: 'monitor' },
+        });
+      }
+
+      // Perform native window embedding if requested and supported
+      if (config.targetHwnd && config.displayMode === 'embedded') {
+        if (process.platform === 'win32') {
           const rawBuffer = win.getNativeWindowHandle();
           const containerHwnd =
             rawBuffer.length === 8
@@ -204,33 +228,30 @@ export class FloatingWindowManager {
             processId: config.processId,
             title: config.title,
           });
-          if (embedRes.embedded) {
-            config.isInteractive = true;
-            if (embedRes.resolvedHwnd) {
-              config.targetHwnd = embedRes.resolvedHwnd;
-            }
-            config.interactionMessage =
-              'Native Application Window Active: Full mouse clicks, typing, and controls';
-          } else {
-            config.isInteractive = false;
-            config.interactionMessage = embedRes.message || 'Window embedding restricted. Check application permissions.';
+
+          if (!embedRes.embedded) {
+            throw new Error(embedRes.message || 'Window embedding failed.');
           }
-        } catch (err: any) {
+
+          config.isInteractive = true;
+          if (embedRes.resolvedHwnd) {
+            config.targetHwnd = embedRes.resolvedHwnd;
+          }
+          config.interactionMessage =
+            'Native Application Window Active: Full mouse clicks, typing, and controls';
+        } else {
+          // macOS / Linux
+          config.displayMode = 'live-monitor';
           config.isInteractive = false;
-          config.interactionMessage = 'Failed to embed window: ' + err.message;
         }
-      } else {
-        // macOS / Linux
-        config.displayMode = 'live-monitor';
-        config.isInteractive = false;
-        config.interactionMessage =
-          process.platform === 'darwin'
-            ? 'macOS WindowServer prevents cross-process window reparenting. Running in Visual Monitor mode.'
-            : 'Visual Monitor active.';
       }
-    } else {
-      config.isInteractive = false;
-      config.interactionMessage = 'Visual Monitor active. Click Focus Original to control the source window.';
+    } catch (err: any) {
+      if (win && !win.isDestroyed()) {
+        try { win.destroy(); } catch {}
+      }
+      this.windows.delete(id);
+      this.configs.delete(id);
+      throw err;
     }
 
     // Event listeners
