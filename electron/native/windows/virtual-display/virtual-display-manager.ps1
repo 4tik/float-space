@@ -1,4 +1,4 @@
-﻿# Float-Space — Windows Virtual Extended Display Subsystem Manager
+# Float-Space — Windows Virtual Extended Display Subsystem Manager
 # Automates Virtual Display Driver (IddCx / MttVDD) installation, activation, and status inspection.
 
 [CmdletBinding()]
